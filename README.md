@@ -1,11 +1,62 @@
-<div align="center">
+# BistroAI: Restaurant Management System
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+An AI-powered, production-grade restaurant management suite.
 
-  <h1>Built with AI Studio</h2>
+## 🚀 Features
+- **AI Smart Ordering**: Gemini-powered recommendations and chatbot.
+- **Real-time Orders**: Live order tracking for staff.
+- **Inventory Control**: Stock level alerts and supplier management.
+- **Sales Analytics**: Revenue forecasting using AI.
+- **Role-Based Access**: Secure portals for Admins, Staff, and Customers.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🛠 Tech Stack
+- **Frontend**: React, Vite, Tailwind CSS, Zustand, Recharts, Framer Motion.
+- **Backend**: Node.js, Express.
+- **Cloud**: Firebase (Auth, Firestore).
+- **AI**: Google Gemini API.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 📦 Setup & Installation
 
-</div>
+### Prerequisites
+- Node.js 18+
+- A Google Cloud Project with Gemini API enabled
+- A Firebase Project (Firestore, Auth)
+
+### Local Development
+1. **Clone the Repo**:
+   ```bash
+   git clone https://github.com/your-username/bistro-ai.git
+   cd bistro-ai
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment**:
+   - Create a `.env` file based on `.env.example`.
+   - Add your `GEMINI_API_KEY`.
+
+4. **Firebase Configuration**:
+   - Copy your Firebase Web Config into a file named `firebase-applet-config.json` in the root directory.
+   - Deploy the rules found in `firestore.rules` to your Firebase project.
+
+5. **Super Admin Setup**:
+   - Open `firestore.rules` and replace the placeholder email in `isSuperAdmin()` with your email.
+   - Similarly, update the email check in `src/pages/Dashboard.tsx` to enable the "Seed Database" button for your user.
+
+6. **Start Dev Server**:
+   ```bash
+   npm run dev
+   ```
+
+## 🔐 Security Rules
+The project includes a `firestore.rules` file that implements:
+- Role-based access control (Admin, Staff, Customer).
+- Attribute-based validation for all writes.
+- Strict PII isolation.
+- Temporal integrity checks for timestamps.
+
+---
+Built with ❤️ by AI Studio.

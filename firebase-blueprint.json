@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user with roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff", "customer"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "MenuItem": {
+      "title": "Menu Item",
+      "description": "Restaurant menu items",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "image": { "type": "string" },
+        "available": { "type": "boolean" },
+        "tags": { "type": "array" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer orders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "preparing", "ready", "delivered", "cancelled"] },
+        "type": { "type": "string", "enum": ["dine-in", "takeaway"] },
+        "tableNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Stock tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "minThreshold": { "type": "number" },
+        "supplier": { "type": "string" }
+      }
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer feedback",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "sentiment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Table": {
+      "title": "Table",
+      "description": "Restaurant table status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "capacity": { "type": "number" },
+        "status": { "type": "string", "enum": ["available", "occupied", "reserved"] },
+        "currentOrderId": { "type": "string" }
+      },
+      "required": ["number", "status"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Registered users"
+    },
+    "menu": {
+      "schema": "MenuItem",
+      "description": "Food and beverage menu"
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Transactions and orders"
+    },
+    "inventory": {
+      "schema": "InventoryItem",
+      "description": "Stock levels"
+    },
+    "reviews": {
+      "schema": "Review",
+      "description": "Customer reviews and feedback"
+    },
+    "tables": {
+      "schema": "Table",
+      "description": "Dining tables"
+    }
+  }
+}
