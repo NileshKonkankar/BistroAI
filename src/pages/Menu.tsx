@@ -32,6 +32,7 @@ interface MenuItem {
   price: number;
   category: string;
   available: boolean;
+  image?: string;
 }
 
 export default function Menu() {
@@ -43,7 +44,8 @@ export default function Menu() {
     description: '',
     price: 0,
     category: 'Main Course',
-    available: true
+    available: true,
+    image: ''
   });
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export default function Menu() {
         createdAt: serverTimestamp()
       });
       setIsAdding(false);
-      setNewItem({ name: '', description: '', price: 0, category: 'Main Course', available: true });
+      setNewItem({ name: '', description: '', price: 0, category: 'Main Course', available: true, image: '' });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, path);
     }
@@ -142,7 +144,16 @@ export default function Menu() {
               )}
             >
               <div className="aspect-video bg-zinc-100 flex items-center justify-center text-zinc-400 overflow-hidden relative">
-                <ChefHat size={48} className="opacity-20 translate-y-4" />
+                {item.image ? (
+                  <img 
+                    src={item.image} 
+                    alt={item.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <ChefHat size={48} className="opacity-20 translate-y-4" />
+                )}
                 <div className="absolute top-3 left-3">
                    <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-zinc-600 shadow-sm">
                       {item.category}
@@ -258,6 +269,16 @@ export default function Menu() {
                     rows={3}
                     value={newItem.description}
                     onChange={e => setNewItem({...newItem, description: e.target.value})}
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-4 focus:ring-2 focus:ring-brand/20 transition-all"
+                   />
+                </div>
+                <div className="space-y-1 col-span-2">
+                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Image URL (Optional)</label>
+                   <input
+                    type="url"
+                    value={newItem.image}
+                    onChange={e => setNewItem({...newItem, image: e.target.value})}
+                    placeholder="https://images.unsplash.com/..."
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-4 focus:ring-2 focus:ring-brand/20 transition-all"
                    />
                 </div>

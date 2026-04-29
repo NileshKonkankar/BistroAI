@@ -75,6 +75,7 @@ export default function Orders() {
   const [tables, setTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'tables'>('orders');
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     const path = 'orders';
@@ -250,121 +251,207 @@ export default function Orders() {
               <motion.div 
                 layout
                 key={order.id}
-                className="card group hover:border-zinc-300 transition-all overflow-hidden"
+                className={cn(
+                  "card group hover:border-zinc-300 transition-all overflow-hidden",
+                  expandedOrderId === order.id && "border-brand/30 shadow-lg ring-1 ring-brand/5"
+                )}
               >
-                <div className="p-5 border-b border-zinc-100 flex items-center justify-between bg-white">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-brand/5 group-hover:border-brand/20 group-hover:text-brand transition-colors">
-                      <Utensils size={24} />
+                <div 
+                  className="p-4 border-b border-zinc-100 flex items-center justify-between bg-white cursor-pointer select-none"
+                  onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 bg-zinc-50 border border-zinc-200 rounded-lg flex items-center justify-center text-zinc-400 group-hover:bg-brand/5 group-hover:border-brand/20 group-hover:text-brand transition-colors",
+                      expandedOrderId === order.id && "bg-brand/5 border-brand/20 text-brand"
+                    )}>
+                      <Utensils size={20} />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-zinc-900">#{order.id.slice(-4).toUpperCase()}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-zinc-900 text-sm">#{order.id.slice(-4).toUpperCase()}</span>
                         <span className={cn(
-                          "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border",
+                          "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border",
                           statusMap[order.status as keyof typeof statusMap]?.color
                         )}>
                           {statusMap[order.status as keyof typeof statusMap]?.label}
                         </span>
                         {order.tableNumber && (
-                          <span className="bg-orange-50 text-orange-700 border-orange-100 text-[10px] font-bold uppercase px-2 py-0.5 rounded border flex items-center gap-1">
-                            <MapPin size={10} />
+                          <span className="bg-orange-50 text-orange-700 border-orange-100 text-[9px] font-black uppercase px-1.5 py-0.5 rounded border flex items-center gap-1">
+                            <MapPin size={8} />
                             {order.tableNumber}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500 font-medium mt-0.5 flex items-center gap-2">
-                        <span>{order.customerEmail || 'Guest Order'}</span>
-                        <span className="w-1 h-1 bg-zinc-300 rounded-full" />
-                        <span className="capitalize">{order.type}</span>
-                        {order.type === 'dine-in' && !order.tableNumber && (
-                          <>
-                            <span className="w-1 h-1 bg-zinc-300 rounded-full" />
-                            <span className="text-orange-600 font-bold">Unassigned</span>
-                          </>
-                        )}
+                      <p className="text-[10px] text-zinc-500 font-bold mt-0.5 flex items-center gap-1.5 uppercase tracking-tighter">
+                        <span>{order.customerEmail || 'Guest'}</span>
+                        <span className="w-0.5 h-0.5 bg-zinc-300 rounded-full" />
+                        <span>{order.type}</span>
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <p className="font-bold text-zinc-900 text-lg">{formatCurrency(order.totalAmount)}</p>
-                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 font-mono mt-1">
-                      <Clock size={12} />
-                      {order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                      <p className="font-black text-zinc-900 text-base">{formatCurrency(order.totalAmount)}</p>
+                      <div className="flex items-center gap-1 text-[9px] text-zinc-400 font-mono mt-0.5">
+                        <Clock size={10} />
+                        {order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}
+                      </div>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: expandedOrderId === order.id ? 90 : 0 }}
+                      className="text-zinc-300"
+                    >
+                      <ChevronRight size={16} />
+                    </motion.div>
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {expandedOrderId === order.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden border-b border-zinc-100"
+                    >
+                      <div className="p-4 bg-zinc-50/30 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                            <Users2 size={10} />
+                            Details
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2">
+                             <div className="bg-white p-2 rounded-xl border border-zinc-200">
+                               <p className="text-[8px] text-zinc-400 font-bold uppercase mb-0.5">Email</p>
+                               <p className="text-[10px] font-medium text-zinc-700 truncate">{order.customerEmail || 'Guest'}</p>
+                             </div>
+                             <div className="bg-white p-2 rounded-xl border border-zinc-200">
+                               <p className="text-[8px] text-zinc-400 font-bold uppercase mb-0.5">Type</p>
+                               <p className="text-[10px] font-medium text-zinc-700 capitalize">{order.type}</p>
+                             </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                            <ClipboardList size={10} />
+                            Items
+                          </h4>
+                          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100">
+                            <div className="p-2 space-y-2">
+                              {order.items?.map((item: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between text-[11px]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 flex-shrink-0">
+                                      {item.image ? (
+                                        <img 
+                                          src={item.image} 
+                                          alt={item.name} 
+                                          className="w-full h-full object-cover"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-zinc-300">
+                                          <Utensils size={12} />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-zinc-700 line-clamp-1">{item.name}</span>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[9px] font-black text-zinc-400">QTY: {item.qty}</span>
+                                        <span className="w-0.5 h-0.5 bg-zinc-200 rounded-full" />
+                                        <span className="text-[9px] font-bold text-zinc-400">{formatCurrency(item.price)} ea</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="text-zinc-500 font-mono font-bold">{formatCurrency(item.price * item.qty)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="bg-zinc-50/50 p-2 flex justify-between items-center">
+                              <span className="text-[9px] font-black text-zinc-400 uppercase">Total</span>
+                              <span className="text-xs font-black text-brand">{formatCurrency(order.totalAmount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {!expandedOrderId && (
+                  <div className="px-4 py-3 bg-zinc-50/50">
+                    <div className="flex flex-wrap gap-1.5">
+                      {order.items?.slice(0, 3).map((item: any, idx: number) => (
+                        <span key={idx} className="px-1.5 py-0.5 bg-white border border-zinc-200 rounded text-[9px] font-bold text-zinc-600 uppercase tracking-tighter">
+                          {item.qty}x {item.name}
+                        </span>
+                      ))}
+                      {order.items?.length > 3 && (
+                        <span className="px-1.5 py-0.5 bg-zinc-100 rounded text-[9px] font-black text-zinc-400 uppercase">
+                          +{order.items.length - 3}
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
 
-                <div className="p-5 bg-zinc-50/50">
-                  <div className="space-y-3">
-                    {order.items?.map((item: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 bg-zinc-200 rounded text-[10px] font-bold flex items-center justify-center text-zinc-600">
-                            {item.qty}x
-                          </span>
-                          <span className="font-medium text-zinc-700">{item.name}</span>
-                        </div>
-                        <span className="text-zinc-500 font-medium">{formatCurrency(item.price * item.qty)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-4 border-t border-zinc-100 flex items-center justify-between bg-white">
-                  <div className="flex gap-2">
+                <div className="px-4 py-3 border-t border-zinc-100 flex items-center justify-between bg-white">
+                  <div className="flex gap-1.5">
                     {order.status === 'pending' && (
                       <button 
                         onClick={() => updateStatus(order.id, 'preparing')}
-                        className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                       >
-                        Start Prep
+                        Start
                       </button>
                     )}
                     {order.status === 'preparing' && (
                       <button 
                         onClick={() => updateStatus(order.id, 'ready')}
-                        className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+                        className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
                       >
-                        Mark Ready
+                        Ready
                       </button>
                     )}
                     {order.status === 'ready' && (
                       <button 
                         onClick={() => updateStatus(order.id, 'delivered')}
-                        className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
+                        className="px-3 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-zinc-800 transition-colors shadow-sm"
                       >
-                        Delivered
+                        Finish
                       </button>
                     )}
                     
                     {/* Table Assignment Section */}
                     {user?.role !== 'customer' && !order.tableNumber && order.status !== 'delivered' && order.type === 'dine-in' && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-px h-8 bg-zinc-100 mx-2" />
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-px h-6 bg-zinc-100 mx-1" />
                         <div className="relative group/select">
                           <select 
                             onChange={(e) => assignTable(order.id, e.target.value)}
-                            className="appearance-none bg-orange-50/50 border border-orange-100 text-[10px] font-black uppercase tracking-wider pl-8 pr-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 transition-all cursor-pointer hover:bg-orange-50 text-orange-700"
+                            className="appearance-none bg-orange-50/50 border border-orange-100 text-[9px] font-black uppercase tracking-widest pl-6 pr-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-200 transition-all cursor-pointer hover:bg-orange-50 text-orange-700"
                             defaultValue=""
                           >
-                            <option value="" disabled>Assign Table</option>
+                            <option value="" disabled>Table</option>
                             {tables.filter(t => t.status === 'available').length > 0 ? (
                               tables.filter(t => t.status === 'available').map(t => (
-                                <option key={t.id} value={t.number}>{t.number} ({t.capacity} Seats)</option>
+                                <option key={t.id} value={t.number}>{t.number} ({t.capacity})</option>
                               ))
                             ) : (
-                              <option value="" disabled>No Tables Available</option>
+                              <option value="" disabled>Full</option>
                             )}
                           </select>
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-400 pointer-events-none">
-                            <MapPin size={14} />
+                          <div className="absolute left-2 top-1/2 -translate-y-1/2 text-orange-400 pointer-events-none">
+                            <MapPin size={10} />
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button 
                       onClick={() => deleteOrder(order.id)}
                       className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

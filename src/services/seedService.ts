@@ -2,14 +2,70 @@ import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, setDoc } 
 import { db, auth } from '../lib/firebase';
 
 const SAMPLE_MENU = [
-  { name: 'Truffle Mushroom Risotto', price: 24, category: 'Main Course', description: 'Creamy carnaroli rice with wild mushrooms and white truffle oil.', available: true },
-  { name: 'Wagyu Beef Sliders', price: 18, category: 'Appetizers', description: 'Three mini burgers with onion jam and aged cheddar.', available: true },
-  { name: 'Matcha Lava Cake', price: 12, category: 'Desserts', description: 'Warm cake with a molten matcha green tea center.', available: true },
-  { name: 'Artisanal Burrata', price: 16, category: 'Appetizers', description: 'Fresh burrata with heirloom tomatoes and balsamic glaze.', available: true },
-  { name: 'Lobster Ravioli', price: 28, category: 'Main Course', description: 'Handmade pasta stuffed with succulent lobster in a brandy cream sauce.', available: true },
-  { name: 'Espresso Martini', price: 15, category: 'Beverages', description: 'Rich espresso, vodka, and coffee liqueur.', available: true },
-  { name: 'Caesar Salad', price: 14, category: 'Appetizers', description: 'Crisp romaine, parmesan, garlic croutons, and house-made dressing.', available: true },
-  { name: 'Grilled Sea Bass', price: 32, category: 'Main Course', description: 'Fresh sea bass served with lemon butter sauce and seasonal vegetables.', available: true },
+  { 
+    name: 'Truffle Mushroom Risotto', 
+    price: 24, 
+    category: 'Main Course', 
+    description: 'Creamy carnaroli rice with wild mushrooms and white truffle oil.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Wagyu Beef Sliders', 
+    price: 18, 
+    category: 'Appetizers', 
+    description: 'Three mini burgers with onion jam and aged cheddar.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1521305916504-4a1121188589?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Matcha Lava Cake', 
+    price: 12, 
+    category: 'Desserts', 
+    description: 'Warm cake with a molten matcha green tea center.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1621236304191-b4731474d788?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Artisanal Burrata', 
+    price: 16, 
+    category: 'Appetizers', 
+    description: 'Fresh burrata with heirloom tomatoes and balsamic glaze.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1594911772125-07fc7a2d8d9f?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Lobster Ravioli', 
+    price: 28, 
+    category: 'Main Course', 
+    description: 'Handmade pasta stuffed with succulent lobster in a brandy cream sauce.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Espresso Martini', 
+    price: 15, 
+    category: 'Beverages', 
+    description: 'Rich espresso, vodka, and coffee liqueur.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Caesar Salad', 
+    price: 14, 
+    category: 'Appetizers', 
+    description: 'Crisp romaine, parmesan, garlic croutons, and house-made dressing.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?q=80&w=400&h=300&auto=format&fit=crop'
+  },
+  { 
+    name: 'Grilled Sea Bass', 
+    price: 32, 
+    category: 'Main Course', 
+    description: 'Fresh sea bass served with lemon butter sauce and seasonal vegetables.', 
+    available: true,
+    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=400&h=300&auto=format&fit=crop'
+  },
 ];
 
 const INITIAL_TABLES = [
@@ -80,8 +136,18 @@ export const seedDatabase = async () => {
           customerId: auth.currentUser?.uid || 'guest',
           customerEmail: auth.currentUser?.email || 'guest@example.com',
           items: [
-            { name: 'Wagyu Beef Sliders', price: 18, qty: 2 },
-            { name: 'Espresso Martini', price: 15, qty: 1 }
+            { 
+              name: 'Wagyu Beef Sliders', 
+              price: 18, 
+              qty: 2,
+              image: 'https://images.unsplash.com/photo-1521305916504-4a1121188589?q=80&w=400&h=300&auto=format&fit=crop'
+            },
+            { 
+              name: 'Espresso Martini', 
+              price: 15, 
+              qty: 1,
+              image: 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?q=80&w=400&h=300&auto=format&fit=crop'
+            }
           ],
           totalAmount: 51,
           status: 'pending',
@@ -92,8 +158,18 @@ export const seedDatabase = async () => {
           customerId: 'test-user-1',
           customerEmail: 'customer1@example.com',
           items: [
-            { name: 'Truffle Mushroom Risotto', price: 24, qty: 1 },
-            { name: 'Matcha Lava Cake', price: 12, qty: 1 }
+            { 
+              name: 'Truffle Mushroom Risotto', 
+              price: 24, 
+              qty: 1,
+              image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=400&h=300&auto=format&fit=crop'
+            },
+            { 
+              name: 'Matcha Lava Cake', 
+              price: 12, 
+              qty: 1,
+              image: 'https://images.unsplash.com/photo-1621236304191-b4731474d788?q=80&w=400&h=300&auto=format&fit=crop'
+            }
           ],
           totalAmount: 36,
           status: 'preparing',
@@ -104,7 +180,12 @@ export const seedDatabase = async () => {
           customerId: 'test-user-2',
           customerEmail: 'customer2@example.com',
           items: [
-            { name: 'Lobster Ravioli', price: 28, qty: 2 }
+            { 
+              name: 'Lobster Ravioli', 
+              price: 28, 
+              qty: 2,
+              image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=400&h=300&auto=format&fit=crop'
+            }
           ],
           totalAmount: 56,
           status: 'ready',

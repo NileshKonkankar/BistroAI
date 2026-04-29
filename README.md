@@ -59,3 +59,4 @@ The project includes a `firestore.rules` file that implements:
 - Temporal integrity checks for timestamps.
 
 ---
+Built with ❤️ by AI Studio.
