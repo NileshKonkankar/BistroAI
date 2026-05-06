@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { aiServerService } from "./server/ai";
+import rateLimit from "express-rate-limit";
 
 async function startServer() {
   const app = express();
@@ -9,7 +10,18 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Rate limiter for AI routes to prevent abuse
+  const aiRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per `window`
+    message: { error: "Too many requests from this IP, please try again after 15 minutes" },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // AI API Routes (Proxied and Cached)
+  app.use("/api/ai/", aiRateLimiter);
+
   app.post("/api/ai/recommendations", async (req, res) => {
     try {
       const { orderHistory, currentMenu } = req.body;

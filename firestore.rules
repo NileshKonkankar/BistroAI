@@ -9,13 +9,14 @@ service cloud.firestore {
 
     // --- GLOBAL HELPERS (Phase 3) ---
     function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
     // Bootstrap Admin: Hardcoding your email as a "Super Admin" for the demo environment
     function isSuperAdmin() {
-      return isSignedIn() && (request.auth.token.email == 'KonkankarNilesh@gmail.com' || request.auth.token.email == 'konkankarnilesh@gmail.com');
+      return isVerified() && (request.auth.token.email == 'KonkankarNilesh@gmail.com' || request.auth.token.email == 'konkankarnilesh@gmail.com');
     }
 
     function getUserData(userId) {
@@ -24,7 +25,7 @@ service cloud.firestore {
 
     function isRole(role) {
       // Order is important for short-circuiting: Super Admin check first to avoid dependency on user doc existence
-      return isSuperAdmin() || (isSignedIn() && getUserData(request.auth.uid).get('role', 'customer') == role);
+      return isSuperAdmin() || (isVerified() && getUserData(request.auth.uid).get('role', 'customer') == role);
     }
 
     function isAdmin() { return isRole('admin'); }
@@ -54,53 +55,58 @@ service cloud.firestore {
     // --- COLLECTION MATCHES ---
 
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
       // Allow creation/updates if it's the user themselves or the super admin
-      // We allow self-role updates on creation/update for this demo specifically
-      allow create: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin()) && isValidUser(incoming());
-      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isSuperAdmin()) && isValidUser(incoming());
+      allow update: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isSuperAdmin()) && 
+                    incoming().email == existing().email &&
+                    (isSuperAdmin() || incoming().role == existing().role);
     }
 
     match /menu/{itemId} {
       allow read: if true; 
-      allow create: if isStaff() && isValidMenuItem(incoming());
-      allow update: if isStaff() && isValidMenuItem(incoming());
-      allow delete: if isAdmin();
+      allow create: if isStaff() && isValidId(itemId) && isValidMenuItem(incoming());
+      allow update: if isStaff() && isValidId(itemId) && isValidMenuItem(incoming());
+      allow delete: if isAdmin() && isValidId(itemId);
     }
 
     match /orders/{orderId} {
       // allow list: Must evaluate existing data
       allow list: if isSignedIn() && (resource.data.customerId == request.auth.uid || isStaff());
-      allow get: if isSignedIn() && (resource.data.customerId == request.auth.uid || isStaff());
+      allow get: if isSignedIn() && isValidId(orderId) && (resource.data.customerId == request.auth.uid || isStaff());
       
-      allow create: if isSignedIn() && 
+      allow create: if isVerified() && 
+                    isValidId(orderId) &&
                     isValidOrder(incoming()) &&
                     incoming().createdAt == request.time;
                     
-      allow update: if isSignedIn() && (
+      allow update: if isVerified() && isValidId(orderId) && (
         // Staff action: Update status or table
         (isStaff() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'tableNumber', 'updatedAt']) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'tableNumber', 'updatedAt'])) ||
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'tableNumber', 'updatedAt']) &&
+         incoming().status != existing().status) ||
         // Customer action: Cancel pending order
-        (existing().customerId == request.auth.uid && existing().status == 'pending' && incoming().status == 'cancelled')
-      );
-      allow delete: if isAdmin();
+        (existing().customerId == request.auth.uid && existing().status == 'pending' && 
+         incoming().status == 'cancelled' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      ) && incoming().customerId == existing().customerId && incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() && isValidId(orderId);
     }
 
     match /inventory/{itemId} {
-      allow read: if isStaff();
-      allow write: if isAdmin();
+      allow read: if isStaff() && isValidId(itemId);
+      allow write: if isAdmin() && isValidId(itemId);
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn() && incoming().customerId == request.auth.uid;
-      allow delete: if isAdmin();
+      allow create: if isVerified() && isValidId(reviewId) && incoming().customerId == request.auth.uid;
+      allow delete: if isAdmin() && isValidId(reviewId);
     }
 
     match /tables/{tableId} {
-      allow read: if isSignedIn();
-      allow write: if isStaff();
+      allow read: if isSignedIn() && isValidId(tableId);
+      allow write: if isStaff() && isValidId(tableId);
     }
     
     // Connectivity Test
