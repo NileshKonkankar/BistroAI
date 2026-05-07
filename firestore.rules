@@ -42,7 +42,8 @@ service cloud.firestore {
       return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.price is number && data.price >= 0 &&
              data.category is string &&
-             data.available is bool;
+             data.available is bool &&
+             (!('tags' in data) || data.tags is list);
     }
 
     function isValidOrder(data) {

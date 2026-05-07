@@ -8,7 +8,8 @@ const SAMPLE_MENU = [
     category: 'Main Course', 
     description: 'Creamy carnaroli rice with wild mushrooms and white truffle oil.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['vegetarian', 'truffle', 'italian']
   },
   { 
     name: 'Wagyu Beef Sliders', 
@@ -16,7 +17,8 @@ const SAMPLE_MENU = [
     category: 'Appetizers', 
     description: 'Three mini burgers with onion jam and aged cheddar.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1521305916504-4a1121188589?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1521305916504-4a1121188589?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['meat', 'beef', 'popular']
   },
   { 
     name: 'Matcha Lava Cake', 
@@ -24,7 +26,8 @@ const SAMPLE_MENU = [
     category: 'Desserts', 
     description: 'Warm cake with a molten matcha green tea center.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1621236304191-b4731474d788?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1621236304191-b4731474d788?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['sweet', 'matcha', 'vegan-option']
   },
   { 
     name: 'Artisanal Burrata', 
@@ -32,7 +35,8 @@ const SAMPLE_MENU = [
     category: 'Appetizers', 
     description: 'Fresh burrata with heirloom tomatoes and balsamic glaze.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1594911772125-07fc7a2d8d9f?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1594911772125-07fc7a2d8d9f?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['fresh', 'cheese', 'vegetarian']
   },
   { 
     name: 'Lobster Ravioli', 
@@ -40,7 +44,8 @@ const SAMPLE_MENU = [
     category: 'Main Course', 
     description: 'Handmade pasta stuffed with succulent lobster in a brandy cream sauce.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['seafood', 'premium', 'italian']
   },
   { 
     name: 'Espresso Martini', 
@@ -48,7 +53,8 @@ const SAMPLE_MENU = [
     category: 'Beverages', 
     description: 'Rich espresso, vodka, and coffee liqueur.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['alcohol', 'coffee', 'cocktail']
   },
   { 
     name: 'Caesar Salad', 
@@ -56,7 +62,8 @@ const SAMPLE_MENU = [
     category: 'Appetizers', 
     description: 'Crisp romaine, parmesan, garlic croutons, and house-made dressing.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['healthy', 'classic', 'vegetarian']
   },
   { 
     name: 'Grilled Sea Bass', 
@@ -64,7 +71,8 @@ const SAMPLE_MENU = [
     category: 'Main Course', 
     description: 'Fresh sea bass served with lemon butter sauce and seasonal vegetables.', 
     available: true,
-    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=400&h=300&auto=format&fit=crop'
+    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=400&h=300&auto=format&fit=crop',
+    tags: ['healthy', 'seafood', 'gluten-free']
   },
 ];
 

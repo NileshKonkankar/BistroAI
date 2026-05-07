@@ -38,6 +38,7 @@ interface MenuItem {
   category: string;
   available: boolean;
   image?: string;
+  tags?: string[];
 }
 
 export default function Menu() {
@@ -47,6 +48,8 @@ export default function Menu() {
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedAvailability, setSelectedAvailability] = useState('All');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [newItem, setNewItem] = useState({
     name: '',
@@ -54,7 +57,8 @@ export default function Menu() {
     price: 0,
     category: 'Main Course',
     available: true,
-    image: ''
+    image: '',
+    tags: ''
   });
 
   useEffect(() => {
@@ -74,12 +78,26 @@ export default function Menu() {
     e.preventDefault();
     const path = 'menu';
     try {
+      const tagsArray = newItem.tags
+        .split(',')
+        .map(tag => tag.trim().toLowerCase())
+        .filter(tag => tag !== '');
+
       await addDoc(collection(db, path), {
         ...newItem,
+        tags: tagsArray,
         createdAt: serverTimestamp()
       });
       setIsAdding(false);
-      setNewItem({ name: '', description: '', price: 0, category: 'Main Course', available: true, image: '' });
+      setNewItem({ 
+        name: '', 
+        description: '', 
+        price: 0, 
+        category: 'Main Course', 
+        available: true, 
+        image: '',
+        tags: '' 
+      });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, path);
     }
@@ -111,12 +129,17 @@ export default function Menu() {
   };
 
   const filteredItems = useMemo(() => {
-    return items.filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [items, searchTerm]);
+    return items.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (item.tags && item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+      const matchesAvailability = selectedAvailability === 'All' || 
+                                 (selectedAvailability === 'Available' ? item.available : !item.available);
+      return matchesSearch && matchesCategory && matchesAvailability;
+    });
+  }, [items, searchTerm, selectedCategory, selectedAvailability]);
 
   const toggleSelectAll = () => {
     if (selectedItems.size === filteredItems.length) {
@@ -210,10 +233,32 @@ export default function Menu() {
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <button className="flex-1 md:flex-none justify-center bg-white border border-zinc-200 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-zinc-50 transition-colors shadow-sm">
-            <Filter size={18} className="text-zinc-400" />
-            Categories
-          </button>
+          <div className="relative group/select flex-1 md:flex-none">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+            <select 
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              className="w-full appearance-none bg-white border border-zinc-200 pl-10 pr-8 py-2.5 rounded-xl text-sm font-medium hover:bg-zinc-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+            >
+              <option value="All">All Categories</option>
+              <option>Main Course</option>
+              <option>Appetizers</option>
+              <option>Desserts</option>
+              <option>Beverages</option>
+            </select>
+          </div>
+
+          <div className="relative group/select flex-1 md:flex-none">
+            <select 
+              value={selectedAvailability}
+              onChange={e => setSelectedAvailability(e.target.value)}
+              className="w-full appearance-none bg-white border border-zinc-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-zinc-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+            >
+              <option value="All">All Status</option>
+              <option value="Available">Available</option>
+              <option value="Unavailable">Unavailable</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -274,6 +319,16 @@ export default function Menu() {
                 <p className="text-sm text-zinc-500 line-clamp-2 min-h-[40px]">
                   {item.description}
                 </p>
+
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {item.tags.map((tag, idx) => (
+                      <span key={idx} className="bg-zinc-50 text-zinc-500 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-zinc-100">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-6 pt-4 border-t border-zinc-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -511,6 +566,16 @@ export default function Menu() {
                     value={newItem.image}
                     onChange={e => setNewItem({...newItem, image: e.target.value})}
                     placeholder="https://images.unsplash.com/..."
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-4 focus:ring-2 focus:ring-brand/20 transition-all"
+                   />
+                </div>
+                <div className="space-y-1 col-span-2">
+                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Tags (comma separated)</label>
+                   <input
+                    type="text"
+                    value={newItem.tags}
+                    onChange={e => setNewItem({...newItem, tags: e.target.value})}
+                    placeholder="e.g. vegan, spicy, gluten-free"
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-4 focus:ring-2 focus:ring-brand/20 transition-all"
                    />
                 </div>
