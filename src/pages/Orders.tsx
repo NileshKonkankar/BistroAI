@@ -382,16 +382,16 @@ export default function Orders() {
                 </AnimatePresence>
 
                 {!expandedOrderId && (
-                  <div className="px-4 py-3 bg-zinc-50/50">
-                    <div className="flex flex-wrap gap-1.5">
+                  <div className="px-4 py-3 bg-zinc-50/50 border-b border-zinc-100/50">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {order.items?.slice(0, 3).map((item: any, idx: number) => (
-                        <span key={idx} className="px-1.5 py-0.5 bg-white border border-zinc-200 rounded text-[9px] font-bold text-zinc-600 uppercase tracking-tighter">
-                          {item.qty}x {item.name}
+                        <span key={idx} className="px-2 py-0.5 bg-white border border-zinc-200 rounded-md text-[10px] font-bold text-zinc-600 uppercase tracking-tight shadow-sm">
+                          {item.qty}× {item.name}
                         </span>
                       ))}
                       {order.items?.length > 3 && (
-                        <span className="px-1.5 py-0.5 bg-zinc-100 rounded text-[9px] font-black text-zinc-400 uppercase">
-                          +{order.items.length - 3}
+                        <span className="px-2 py-0.5 bg-zinc-200/50 border border-zinc-200 text-zinc-500 rounded-md text-[10px] font-black uppercase tracking-tighter">
+                          +{order.items.slice(3).reduce((acc: number, item: any) => acc + (item.qty || 0), 0)} more items
                         </span>
                       )}
                     </div>
