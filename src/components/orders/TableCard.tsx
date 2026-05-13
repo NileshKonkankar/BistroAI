@@ -74,7 +74,7 @@ export default function TableCard({
                   <p className="text-[10px] text-zinc-400 font-bold">#{currentOrder.id.slice(-4).toUpperCase()}</p>
                 </div>
                 <p className="text-xs font-bold text-zinc-900 line-clamp-1">
-                  {currentOrder.items.map((i: any) => i.name).join(', ')}
+                  {currentOrder.items.map((i: any) => `${i.qty}× ${i.name}`).join(', ')}
                 </p>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-orange-50">
                   <p className="text-[10px] font-black text-zinc-400 uppercase">{currentOrder.status}</p>

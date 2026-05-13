@@ -358,10 +358,13 @@ export default function Orders() {
                                       )}
                                     </div>
                                     <div className="flex flex-col">
-                                      <span className="font-bold text-zinc-700 line-clamp-1">{item.name}</span>
-                                      <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="text-[9px] font-black text-zinc-400">QTY: {item.qty}</span>
-                                        <span className="w-0.5 h-0.5 bg-zinc-200 rounded-full" />
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-5 h-5 flex-shrink-0 bg-zinc-100 border border-zinc-200 text-zinc-600 text-[9px] font-black rounded flex items-center justify-center">
+                                          {item.qty}
+                                        </span>
+                                        <span className="font-bold text-zinc-700 line-clamp-1">{item.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 mt-0.5 pl-6">
                                         <span className="text-[9px] font-bold text-zinc-400">{formatCurrency(item.price)} ea</span>
                                       </div>
                                     </div>
