@@ -8,6 +8,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Trust the proxy (necessary for Google Cloud Run and other load balancers)
+  app.set('trust proxy', 1);
+
   app.use(express.json());
 
   // Rate limiter for AI routes to prevent abuse
@@ -17,6 +20,10 @@ async function startServer() {
     message: { error: "Too many requests from this IP, please try again after 15 minutes" },
     standardHeaders: true,
     legacyHeaders: false,
+    // Use the IP set by Express's trust proxy
+    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
+    // Disable validation warnings if any are unnecessary
+    validate: { xForwardedForHeader: false },
   });
 
   // AI API Routes (Proxied and Cached)

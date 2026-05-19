@@ -106,7 +106,7 @@ service cloud.firestore {
     }
 
     match /tables/{tableId} {
-      allow read: if isSignedIn() && isValidId(tableId);
+      allow read: if isSignedIn();
       allow write: if isStaff() && isValidId(tableId);
     }
     
