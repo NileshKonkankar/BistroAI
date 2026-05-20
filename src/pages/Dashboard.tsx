@@ -7,8 +7,15 @@ import {
   Brain,
   ArrowUpRight,
   ArrowDownRight,
-  Database
+  Database,
+  Star,
+  Smile,
+  Meh,
+  Frown,
+  MessageSquare
 } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { 
   LineChart, 
   Line, 
@@ -40,6 +47,17 @@ export default function Dashboard() {
   const [forecast, setForecast] = useState<any>(null);
   const [loadingForecast, setLoadingForecast] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Error loading reviews: ", error);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     async function getForecast() {
@@ -214,6 +232,143 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Customer Sentiment Hub */}
+      <div className="card p-6 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-100">
+          <div>
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+              <MessageSquare className="text-brand" size={20} />
+              AI Customer Feedback & Sentiment Hub
+            </h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Real-time monitoring and AI semantic classification of customer dining experiences
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-bold text-zinc-500">
+            <span>Total Reviews: {reviews.length}</span>
+          </div>
+        </div>
+
+        {reviews.length === 0 ? (
+          <div className="text-center py-12 bg-zinc-50/50 rounded-2xl border border-dashed border-zinc-200 flex flex-col items-center justify-center p-6">
+            <MessageSquare size={36} className="text-zinc-350 mb-3" />
+            <p className="font-bold text-zinc-500">No customer reviews recorded yet</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Reviews submitted by customers will show up here along with their automatic AI-analyzed sentiment.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Sentiment KPI block */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-405 text-zinc-400 font-bold">Semantic Sentiment</h3>
+              <div className="space-y-3.5 bg-zinc-50/70 border border-zinc-200/50 p-5 rounded-2xl">
+                {/* Positive */}
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-emerald-700 mb-1.5 items-center">
+                    <span className="flex items-center gap-1">😊 Positive</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'positive').length} ({reviews.length > 0 ? Math.round((reviews.filter(r => r.sentiment === 'positive').length / reviews.length) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'positive').length / reviews.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Neutral */}
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-zinc-650 text-zinc-600 mb-1.5 items-center">
+                    <span className="flex items-center gap-1">😐 Neutral</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'neutral').length} ({reviews.length > 0 ? Math.round((reviews.filter(r => r.sentiment === 'neutral').length / reviews.length) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-zinc-400 rounded-full transition-all duration-500" 
+                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'neutral').length / reviews.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Negative */}
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-rose-700 mb-1.5 items-center">
+                    <span className="flex items-center gap-1">😞 Negative</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'negative').length} ({reviews.length > 0 ? Math.round((reviews.filter(r => r.sentiment === 'negative').length / reviews.length) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-rose-500 rounded-full transition-all duration-500" 
+                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'negative').length / reviews.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Sentiment Rating Card */}
+              <div className="p-4 bg-brand/5 border border-brand/10 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-zinc-500 tracking-wide uppercase">Average Rating</p>
+                  <p className="text-3xl font-black text-zinc-900 mt-1">
+                    {(reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length).toFixed(1)} <span className="text-sm font-bold text-zinc-400">/ 5.0</span>
+                  </p>
+                </div>
+                <div className="flex items-center text-amber-500">
+                  <Star size={32} className="fill-amber-500 text-amber-500" />
+                </div>
+              </div>
+            </div>
+
+            {/* List of Latest Reviews with Sentiments */}
+            <div className="lg:col-span-2 space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-405 text-zinc-400 font-bold">Latest Customer reviews</h3>
+              <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 divide-y divide-zinc-100">
+                {reviews.slice(0, 10).map((review, idx) => (
+                  <div key={review.id || idx} className="pt-4 first:pt-0 animate-in fade-in">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-800">{review.customerEmail}</span>
+                        <span className="w-1 h-1 bg-zinc-300 rounded-full" />
+                        <span className="text-[10px] font-bold text-zinc-400">
+                          {review.createdAt ? (review.createdAt.toDate ? review.createdAt.toDate() : new Date(review.createdAt)).toLocaleDateString() : 'Recent'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5 text-amber-500">
+                        {[...Array(5)].map((_, i) => (
+                          <Star 
+                            key={i} 
+                            size={12} 
+                            className={i < (review.rating || 0) ? "fill-amber-500 stroke-amber-500" : "text-zinc-200"} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium text-zinc-700 italic">"{review.comment}"</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border",
+                        review.sentiment === 'positive' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                        review.sentiment === 'negative' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                        "bg-zinc-50 text-zinc-500 border-zinc-200"
+                      )}>
+                        {review.sentiment === 'positive' && "😊 Positive"}
+                        {review.sentiment === 'neutral' && "😐 Neutral"}
+                        {review.sentiment === 'negative' && "😞 Negative"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
