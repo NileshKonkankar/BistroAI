@@ -15,7 +15,8 @@ import {
   Calendar,
   TrendingUp,
   RotateCcw,
-  Star
+  Star,
+  ChefHat
 } from 'lucide-react';
 import { 
   collection, 
@@ -31,6 +32,56 @@ import { aiService } from '../services/aiService';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
+
+const getDishImage = (item: any) => {
+  if (item.image && item.image.trim() !== '') return item.image;
+  
+  const name = (item.name || '').toLowerCase();
+  const category = (item.category || '').toLowerCase();
+  
+  if (name.includes('burger') || name.includes('slider')) {
+    return 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('pizza') || name.includes('flatbread')) {
+    return 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('risotto') || name.includes('rice') || name.includes('paella')) {
+    return 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('pasta') || name.includes('ravioli') || name.includes('spaghetti') || name.includes('noodle')) {
+    return 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('steak') || name.includes('beef') || name.includes('meat') || name.includes('ribs')) {
+    return 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('salad') || name.includes('basil') || name.includes('burrata') || name.includes('caprese')) {
+    return 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('cake') || name.includes('dessert') || name.includes('sweet') || name.includes('chocolate') || name.includes('lava')) {
+    return 'https://images.unsplash.com/photo-1621236304191-b4731474d788?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('coffee') || name.includes('martini') || name.includes('drink') || name.includes('beverage') || name.includes('cocktail') || name.includes('tea')) {
+    return 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (name.includes('fish') || name.includes('salmon') || name.includes('sea bass') || name.includes('lobster') || name.includes('shrimp') || name.includes('seafood')) {
+    return 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  
+  if (category.includes('appetizer') || category.includes('starter')) {
+    return 'https://images.unsplash.com/photo-1541525044434-601d368e7343?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (category.includes('main')) {
+    return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (category.includes('dessert')) {
+    return 'https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+  if (category.includes('drink') || category.includes('beverage')) {
+    return 'https://images.unsplash.com/photo-1497534446932-c925b458314e?q=80&w=400&h=300&auto=format&fit=crop';
+  }
+
+  return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&h=300&auto=format&fit=crop';
+};
 
 export default function CustomerView() {
   const [menu, setMenu] = useState<any[]>([]);
@@ -336,25 +387,34 @@ export default function CustomerView() {
 
       {/* Menu Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {menu.map((item) => (
-          <div key={item.id} className="group cursor-pointer" onClick={() => addToCart(item)}>
-            <div className="relative aspect-[4/3] rounded-3xl bg-zinc-100 overflow-hidden mb-4 border border-zinc-200">
-               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all duration-300">
-                  <span className="bg-white text-zinc-900 px-6 py-2 rounded-full font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform">
-                    Add to Cart
-                  </span>
-               </div>
+        {menu.map((item) => {
+          const dishImg = getDishImage(item);
+          return (
+            <div key={item.id} className="group cursor-pointer" onClick={() => addToCart(item)}>
+              <div className="relative aspect-[4/3] rounded-3xl bg-zinc-100 overflow-hidden mb-4 border border-zinc-200">
+                 <img 
+                   src={dishImg} 
+                   alt={item.name} 
+                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                   referrerPolicy="no-referrer"
+                 />
+                 <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></div>
+                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all duration-300">
+                    <span className="bg-white text-zinc-900 px-6 py-2 rounded-full font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform">
+                      Add to Cart
+                    </span>
+                 </div>
+              </div>
+              <div className="flex justify-between items-start">
+                 <div>
+                    <h3 className="font-bold text-lg text-zinc-900">{item.name}</h3>
+                    <p className="text-sm text-zinc-500 line-clamp-2">{item.description}</p>
+                 </div>
+                 <p className="font-bold text-brand text-lg">{formatCurrency(item.price)}</p>
+              </div>
             </div>
-            <div className="flex justify-between items-start">
-               <div>
-                  <h3 className="font-bold text-lg text-zinc-900">{item.name}</h3>
-                  <p className="text-sm text-zinc-500 line-clamp-2">{item.description}</p>
-               </div>
-               <p className="font-bold text-brand text-lg">{formatCurrency(item.price)}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Floating Cart Panel */}
