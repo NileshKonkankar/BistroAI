@@ -16,7 +16,8 @@ import {
   TrendingUp,
   RotateCcw,
   Star,
-  ChefHat
+  ChefHat,
+  Download
 } from 'lucide-react';
 import { 
   collection, 
@@ -32,6 +33,7 @@ import { aiService } from '../services/aiService';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
+import { generateInvoicePDF } from '../lib/invoiceGenerator';
 
 const getDishImage = (item: any) => {
   if (item.image && item.image.trim() !== '') return item.image;
@@ -653,13 +655,24 @@ export default function CustomerView() {
                                 <span className="text-base font-black text-zinc-900">{formatCurrency(order.totalAmount)}</span>
                               </div>
                               
-                              <button
-                                onClick={() => handleReorder(order.items)}
-                                className="flex items-center gap-1.5 text-xs font-bold text-brand bg-brand/5 border border-brand/10 hover:bg-brand/10 px-3 py-1.5 rounded-xl transition-all"
-                              >
-                                <RotateCcw size={12} />
-                                <span>Quick Reorder</span>
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => generateInvoicePDF(order)}
+                                  className="flex items-center gap-1.5 text-xs font-bold text-zinc-600 bg-zinc-100 border border-zinc-200 hover:bg-zinc-200 px-3 py-1.5 rounded-xl transition-all"
+                                  title="Download Invoice PDF"
+                                >
+                                  <Download size={12} />
+                                  <span>Invoice PDF</span>
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleReorder(order.items)}
+                                  className="flex items-center gap-1.5 text-xs font-bold text-brand bg-brand/5 border border-brand/10 hover:bg-brand/10 px-3 py-1.5 rounded-xl transition-all"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>Quick Reorder</span>
+                                </button>
+                              </div>
                             </div>
 
                             {/* Review Display or Write Review Form */}

@@ -22,7 +22,8 @@ import {
   VolumeX,
   Timer,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { 
   collection, 
@@ -43,6 +44,7 @@ import { useAppStore } from '../store/useAppStore';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
+import { generateInvoicePDF } from '../lib/invoiceGenerator';
 import TableCard from '../components/orders/TableCard';
 
 const statusMap = {
@@ -838,8 +840,16 @@ export default function Orders() {
                   </div>
                   <div className="flex items-center gap-0.5">
                     <button 
+                      onClick={() => generateInvoicePDF(order)}
+                      className="p-2 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Download Invoice PDF"
+                    >
+                      <Download size={16} />
+                    </button>
+                    <button 
                       onClick={() => deleteOrder(order.id)}
                       className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete Order"
                     >
                       <Trash2 size={16} />
                     </button>
