@@ -89,7 +89,8 @@ export default function CustomerView() {
   const [menu, setMenu] = useState<any[]>([]);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
-  const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'bot', text: string }[]>([
     { role: 'bot', text: 'Hello! I am BistroBot. How can I help you with your order today?' }
@@ -145,6 +146,16 @@ export default function CustomerView() {
     const path = 'menu';
     const unsub = onSnapshot(query(collection(db, path)), (snap) => {
       setMenu(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const path = 'inventory';
+    const unsub = onSnapshot(query(collection(db, path)), (snap) => {
+      setInventory(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
     });
@@ -213,9 +224,18 @@ export default function CustomerView() {
 
   useEffect(() => {
     if (menu.length > 0) {
-      aiService.getRecommendations([], menu).then(setRecommendations);
+      const pastItems = activeOrders.flatMap(o => o.items || []);
+      aiService.getRecommendations(pastItems, menu, inventory)
+        .then(res => {
+          if (Array.isArray(res)) {
+            setRecommendations(res);
+          }
+        })
+        .catch(err => {
+          console.warn("Chef AI recommendations trigger failed:", err);
+        });
     }
-  }, [menu]);
+  }, [menu, activeOrders, inventory]);
 
   const addToCart = (item: any) => {
     const existing = cart.find(c => c.id === item.id);
@@ -294,28 +314,64 @@ export default function CustomerView() {
       {/* AI Recommendations */}
       {recommendations.length > 0 && (
         <section className="mb-12">
-          <div className="flex items-center gap-2 mb-4">
-             <Sparkles className="text-brand" size={20} />
-             <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Chef's Smart Recommendations</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+               <Sparkles className="text-brand animate-pulse" size={22} />
+               <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500">Chef's Smart Recommendations</h2>
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+              Live Gemini API Feedback
+            </span>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-             {recommendations.map((name, idx) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+             {recommendations.map((rec, idx) => {
+               const name = typeof rec === 'string' ? rec : rec.name;
+               const reason = typeof rec === 'string' ? 'Chef Pick' : rec.reason;
+               const score = typeof rec === 'string' ? 95 : rec.matchScore;
+               
                const item = menu.find(m => m.name === name);
                if (!item) return null;
+               const dishImg = getDishImage(item);
+               
                return (
-                 <button 
-                  key={idx}
-                  onClick={() => addToCart(item)}
-                  className="flex-shrink-0 bg-brand/5 border border-brand/20 p-4 rounded-2xl flex items-center gap-4 hover:bg-brand/10 transition-colors group"
+                 <div 
+                   key={idx}
+                   className="bg-white border border-zinc-200/80 hover:border-brand/40 shadow-xs hover:shadow-md transition-all duration-300 rounded-3xl p-4 flex flex-col justify-between group overflow-hidden relative"
                  >
-                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-brand shadow-sm">
-                      <Plus size={20} />
+                   <div className="relative h-28 rounded-2xl overflow-hidden mb-3">
+                     <img 
+                       src={dishImg} 
+                       alt={item.name} 
+                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                       referrerPolicy="no-referrer"
+                     />
+                     <div className="absolute top-2.5 right-2.5 bg-brand/90 backdrop-blur-xs text-white text-[9px] font-black tracking-wider px-2 py-0.5 rounded-full uppercase flex items-center gap-0.5 shadow-sm">
+                       <Sparkles size={8} /> {score}% Match
+                     </div>
                    </div>
-                   <div className="text-left">
-                      <p className="text-xs font-bold text-brand uppercase tracking-tighter">AI Pick</p>
-                      <p className="font-bold text-zinc-900 whitespace-nowrap">{name}</p>
+
+                   <div className="flex-1 select-none">
+                     <h3 className="font-bold text-zinc-900 text-sm leading-snug group-hover:text-brand transition-colors">
+                       {item.name}
+                     </h3>
+                     <p className="text-[10.5px] text-zinc-500 leading-normal font-medium mt-1 line-clamp-2 italic">
+                       "{reason}"
+                     </p>
+                     <div className="flex items-baseline gap-1 mt-2">
+                       <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Price:</span>
+                       <span className="text-sm font-black text-zinc-900">{formatCurrency(item.price)}</span>
+                     </div>
                    </div>
-                 </button>
+
+                   <button
+                     onClick={() => addToCart(item)}
+                     className="w-full mt-3.5 bg-zinc-900 text-white hover:bg-brand text-xs font-bold py-2 rounded-xl transition duration-150 flex items-center justify-center gap-1 bg-zinc-900 cursor-pointer shadow-2xs hover:shadow-none"
+                   >
+                     <Plus size={13} />
+                     <span>Add Recommendation</span>
+                   </button>
+                 </div>
                );
              })}
           </div>

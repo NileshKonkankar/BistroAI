@@ -1,10 +1,10 @@
 export const aiService = {
   // 1. Order Recommendations
-  async getRecommendations(orderHistory: any[], currentMenu: any[]) {
+  async getRecommendations(orderHistory: any[], currentMenu: any[], inventory: any[] = []) {
     const res = await fetch('/api/ai/recommendations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderHistory, currentMenu })
+      body: JSON.stringify({ orderHistory, currentMenu, inventory })
     });
     return res.json();
   },

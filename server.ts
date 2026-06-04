@@ -31,8 +31,8 @@ async function startServer() {
 
   app.post("/api/ai/recommendations", async (req, res) => {
     try {
-      const { orderHistory, currentMenu } = req.body;
-      const result = await aiServerService.getRecommendations(orderHistory, currentMenu);
+      const { orderHistory, currentMenu, inventory } = req.body;
+      const result = await aiServerService.getRecommendations(orderHistory || [], currentMenu || [], inventory || []);
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
