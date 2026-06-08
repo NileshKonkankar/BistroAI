@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, 
   Sparkles, 
@@ -17,7 +17,8 @@ import {
   RotateCcw,
   Star,
   ChefHat,
-  Download
+  Download,
+  Search
 } from 'lucide-react';
 import { 
   collection, 
@@ -105,6 +106,22 @@ export default function CustomerView() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const filteredMenu = useMemo(() => {
+    return menu.filter(item => {
+      const matchesSearch = 
+        (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.tags && item.tags.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase())));
+      
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [menu, searchTerm, selectedCategory]);
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Just now';
@@ -443,37 +460,126 @@ export default function CustomerView() {
         </section>
       )}
 
-      {/* Menu Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {menu.map((item) => {
-          const dishImg = getDishImage(item);
-          return (
-            <div key={item.id} className="group cursor-pointer" onClick={() => addToCart(item)}>
-              <div className="relative aspect-[4/3] rounded-3xl bg-zinc-100 overflow-hidden mb-4 border border-zinc-200">
-                 <img 
-                   src={dishImg} 
-                   alt={item.name} 
-                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                   referrerPolicy="no-referrer"
-                 />
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></div>
-                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all duration-300">
-                    <span className="bg-white text-zinc-900 px-6 py-2 rounded-full font-bold shadow-xl scale-95 group-hover:scale-100 transition-transform">
-                      Add to Cart
-                    </span>
-                 </div>
-              </div>
-              <div className="flex justify-between items-start">
-                 <div>
-                    <h3 className="font-bold text-lg text-zinc-900">{item.name}</h3>
-                    <p className="text-sm text-zinc-500 line-clamp-2">{item.description}</p>
-                 </div>
-                 <p className="font-bold text-brand text-lg">{formatCurrency(item.price)}</p>
-              </div>
-            </div>
-          );
-        })}
+      {/* Category Pills & Search Bar */}
+      <div className="mb-8 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Category Capsules */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+            {['All', 'Main Course', 'Appetizers', 'Desserts', 'Beverages'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  "px-4.5 py-2.5 rounded-full text-[11px] font-black tracking-widest uppercase transition-all duration-200 cursor-pointer whitespace-nowrap active:scale-95 shadow-2xs hover:shadow-none animate-in fade-in zoom-in-95",
+                  selectedCategory === cat
+                    ? "bg-zinc-900 text-white shadow-sm" 
+                    : "bg-white border border-zinc-200 text-zinc-500 hover:bg-zinc-100"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Bar Input */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={15} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search dishes, tags, ingredients..."
+              className="w-full bg-white border border-zinc-200 rounded-2xl py-2.5 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-all shadow-2xs placeholder-zinc-400"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-650 bg-zinc-100 hover:bg-zinc-200 p-1 rounded-full transition-all cursor-pointer flex items-center justify-center animate-in fade-in scale-95"
+              >
+                <X size={10} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Menu Grid */}
+      {filteredMenu.length === 0 ? (
+        <div className="text-center py-16 bg-zinc-50/50 rounded-3xl border border-dashed border-zinc-200 p-6 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mb-4">
+            <Search size={22} />
+          </div>
+          <p className="font-bold text-zinc-650 text-sm">No dishes match your request</p>
+          <p className="text-xs text-zinc-450 mt-1 max-w-xs mx-auto text-zinc-400">
+            Try adjusting your search keywords, exploring other delicious categories, or reset filters!
+          </p>
+          {(searchTerm !== '' || selectedCategory !== 'All') && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('All');
+              }}
+              className="mt-4 text-xs font-bold text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 px-4 py-2 rounded-xl transition-all cursor-pointer active:scale-95"
+            >
+              Clear Filters & Reset
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredMenu.map((item) => {
+            const dishImg = getDishImage(item);
+            return (
+              <div 
+                key={item.id} 
+                className="group cursor-pointer select-none bg-white border border-zinc-200/80 rounded-3xl p-4 hover:border-brand/35 hover:shadow-md transition-all duration-300 flex flex-col justify-between" 
+                onClick={() => addToCart(item)}
+              >
+                <div>
+                  <div className="relative aspect-[4/3] rounded-2xl bg-zinc-100 overflow-hidden mb-4 border border-zinc-200/60">
+                     <img 
+                       src={dishImg} 
+                       alt={item.name} 
+                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                       referrerPolicy="no-referrer"
+                     />
+                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></div>
+                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all duration-300">
+                        <span className="bg-white text-zinc-900 px-5 py-2.5 rounded-2xl font-bold text-xs shadow-xl scale-95 group-hover:scale-100 transition-transform flex items-center gap-1.5 active:scale-95">
+                          <Plus size={14} /> Add to Cart
+                        </span>
+                     </div>
+                     <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest text-zinc-650 shadow-2xs border border-zinc-100 select-none">
+                        {item.category}
+                     </span>
+                  </div>
+                  <div className="flex justify-between items-start gap-4 px-1">
+                     <div className="flex-1">
+                        <h3 className="font-bold text-base text-zinc-900 group-hover:text-brand transition-colors leading-tight">
+                          {item.name}
+                        </h3>
+                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2 leading-relaxed min-h-[32px] font-medium">
+                          {item.description}
+                        </p>
+                     </div>
+                     <p className="font-black text-brand text-base leading-none">{formatCurrency(item.price)}</p>
+                  </div>
+                </div>
+
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-zinc-100 px-1">
+                    {item.tags.map((tag: any, idx: number) => (
+                      <span key={idx} className="bg-zinc-50 text-zinc-500 text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded border border-zinc-150">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Floating Cart Panel */}
       <AnimatePresence>
