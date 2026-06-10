@@ -18,7 +18,8 @@ import {
   Star,
   ChefHat,
   Download,
-  Search
+  Search,
+  MapPin
 } from 'lucide-react';
 import { 
   collection, 
@@ -35,6 +36,7 @@ import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
 import { generateInvoicePDF } from '../lib/invoiceGenerator';
+import OrderProgressTracker from '../components/orders/OrderProgressTracker';
 
 const getDishImage = (item: any) => {
   if (item.image && item.image.trim() !== '') return item.image;
@@ -401,8 +403,7 @@ export default function CustomerView() {
           <div className="flex items-center gap-2 mb-6">
              <ShoppingBag className="text-brand" size={20} />
              <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Track Your Orders</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          </div>          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <AnimatePresence>
               {activeOrders
                 .filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
@@ -412,47 +413,41 @@ export default function CustomerView() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     key={order.id}
-                    className="bg-white border border-zinc-200 p-5 rounded-3xl shadow-sm hover:border-brand/20 transition-all flex items-center justify-between"
+                    className="bg-white border border-zinc-200 p-6 rounded-3xl shadow-xs hover:shadow-md hover:border-brand/30 transition-all flex flex-col gap-6"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner",
-                        order.status === 'pending' ? "bg-amber-50 text-amber-500" :
-                        order.status === 'preparing' ? "bg-blue-50 text-blue-500" :
-                        "bg-emerald-50 text-emerald-500"
-                      )}>
-                        {order.status === 'pending' ? <Send size={20} /> : <CheckCircle2 size={20} />}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner transition-colors duration-500",
+                          order.status === 'pending' ? "bg-amber-50 text-amber-500" :
+                          order.status === 'preparing' ? "bg-blue-50 text-blue-500" :
+                          "bg-emerald-50 text-emerald-500"
+                        )}>
+                          {order.status === 'pending' ? <Send size={20} className="animate-pulse" /> : 
+                           order.status === 'preparing' ? <ChefHat size={20} className="animate-bounce" /> :
+                           <CheckCircle2 size={20} />}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-brand uppercase tracking-widest font-mono">Order #{order.id.slice(-4).toUpperCase()}</p>
+                          <h3 className="font-bold text-zinc-900 capitalize text-base flex items-center gap-2 mt-0.5">
+                            {order.status === 'pending' ? 'Received & Confirmed' : order.status}
+                          </h3>
+                          <p className="text-[10px] text-zinc-400 font-bold uppercase mt-0.5 tracking-wider">
+                            {order.items.length} items • {formatCurrency(order.totalAmount)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-brand uppercase tracking-tighter">Order #{order.id.slice(-4).toUpperCase()}</p>
-                        <h3 className="font-bold text-zinc-900 capitalize text-lg">{order.status}</h3>
-                        <p className="text-[10px] text-zinc-400 font-mono">
-                          {order.items.length} items • {formatCurrency(order.totalAmount)}
-                        </p>
-                      </div>
+
+                      {order.tableNumber && (
+                        <div className="text-[10px] font-black tracking-widest text-orange-700 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-xl uppercase flex items-center gap-1 font-mono">
+                          <MapPin size={10} className="stroke-[3]" />
+                          Table {order.tableNumber}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex flex-col items-end gap-2">
-                       {order.tableNumber && (
-                         <div className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg uppercase">
-                           Table {order.tableNumber}
-                         </div>
-                       )}
-                       <div className="flex h-1.5 w-24 bg-zinc-100 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ 
-                              width: order.status === 'pending' ? '33%' : 
-                                     order.status === 'preparing' ? '66%' : '100%' 
-                            }}
-                            className={cn(
-                              "h-full transition-all duration-1000",
-                              order.status === 'pending' ? "bg-amber-400" :
-                              order.status === 'preparing' ? "bg-blue-400" : "bg-emerald-400"
-                            )}
-                          />
-                       </div>
-                    </div>
+                    {/* Stepped progress tracker component */}
+                    <OrderProgressTracker status={order.status} className="border-t border-zinc-100/85 pt-4" />
                   </motion.div>
                 ))}
             </AnimatePresence>
