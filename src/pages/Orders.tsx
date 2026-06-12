@@ -46,6 +46,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
 import { generateInvoicePDF } from '../lib/invoiceGenerator';
 import TableCard from '../components/orders/TableCard';
+import OrderProgressTracker from '../components/orders/OrderProgressTracker';
 
 const statusMap = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700 border-amber-200' },
@@ -699,8 +700,12 @@ export default function Orders() {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden border-b border-zinc-100"
                     >
-                      <div className="p-4 bg-zinc-50/30 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
+                      <div className="p-4 bg-zinc-50/30 flex flex-col gap-5">
+                        <div className="bg-white p-4.5 rounded-2xl border border-zinc-200 shadow-2xs">
+                          <OrderProgressTracker status={order.status} />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-3">
                           <h4 className="text-[9px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
                             <Users2 size={10} />
                             Details
@@ -764,7 +769,8 @@ export default function Orders() {
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
+                  </motion.div>
                   )}
                 </AnimatePresence>
 

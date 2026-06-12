@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Package, 
   AlertCircle, 
@@ -16,7 +16,8 @@ import {
   Bell,
   Mail,
   Volume2,
-  Check
+  Check,
+  Clock
 } from 'lucide-react';
 import { 
   collection, 
@@ -30,7 +31,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, cn } from '../lib/utils';
 
 // Static fallbacks if Firestore holds no data or during loading
 const INITIAL_FALLBACKS = [
@@ -91,14 +92,131 @@ const detectCategory = (item: any): keyof typeof CATEGORY_MAP => {
 
 export default function Inventory() {
   const [items, setItems] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'belowPar' | 'optimal'>('all');
+  const [leadTimeSetting, setLeadTimeSetting] = useState<number>(2); // lead time parameter customizable by user
   
   // Real-time notification & alert states
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [alertLogs, setAlertLogs] = useState<any[]>([]);
   const isFirstLoad = useRef(true);
   const prevQtys = useRef<Record<string, number>>({});
+
+  // Fetch orders for historical usage analysis
+  useEffect(() => {
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const liveOrders = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setOrders(liveOrders);
+    }, (error) => {
+      console.warn("Could not load orders in inventory:", error);
+    });
+    return () => unsubOrders();
+  }, []);
+
+  // Solve dynamic Par Level thresholds based on orders history using NLP keyword heuristic matches
+  const dynamicParLevels = useMemo(() => {
+    if (items.length === 0) return {};
+    
+    // Compute total service calendar window in days of orders
+    let minDate = new Date();
+    let maxDate = new Date();
+    let hasDates = false;
+
+    orders.forEach(order => {
+      if (order.status === 'cancelled') return;
+      const date = order.createdAt?.seconds 
+        ? new Date(order.createdAt.seconds * 1000) 
+        : (order.createdAt ? new Date(order.createdAt) : null);
+      if (date) {
+        hasDates = true;
+        if (date < minDate) minDate = date;
+        if (date > maxDate) maxDate = date;
+      }
+    });
+
+    let diffDays = 7; // default fallback window
+    if (hasDates) {
+      const diffTime = Math.abs(maxDate.getTime() - minDate.getTime());
+      diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+
+    const parLevelsMap: Record<string, { par: number; dailyAvg: number; totalUsed: number; periodInDays: number; matchCount: number }> = {};
+
+    items.forEach(item => {
+      const itemNameLower = (item.name || '').toLowerCase();
+      // Extract substantial matching keywords, ignoring small standard modifiers
+      const itemWords = itemNameLower
+        .split(/\s+/)
+        .filter((w: string) => w.length > 2 && !['and', 'with', 'fresh', 'organic', 'oil', 'mild', 'hot'].includes(w));
+      
+      let totalUsed = 0;
+      let matchCount = 0;
+
+      orders.forEach(order => {
+        if (order.status === 'cancelled') return;
+        order.items?.forEach((orderItem: any) => {
+          const orderItemName = (orderItem.name || '').toLowerCase();
+          const orderItemDesc = (orderItem.description || '').toLowerCase();
+          
+          // Cross matching item name with menu item name or menu item description keywords
+          const isMatch = itemNameLower.includes(orderItemName) || 
+                          orderItemName.includes(itemNameLower) ||
+                          itemWords.some((word: string) => orderItemName.includes(word) || orderItemDesc.includes(word));
+          
+          if (isMatch) {
+            matchCount += (orderItem.qty || 1);
+            
+            // Standard generic conversion formula from ordered unit plates to raw material consumption
+            const unit = (item.unit || '').toLowerCase();
+            let quantityPerPlate = 0.15; // default is 150g per order
+            
+            if (unit.includes('liter') || unit === 'l' || unit === 'ml') {
+              quantityPerPlate = 0.05; // 50ml or 0.05 Liters
+            } else if (unit.includes('gram') || unit === 'g') {
+              quantityPerPlate = 25; // 25g
+            } else if (unit.includes('pack') || unit.includes('pcs') || unit.includes('pc') || unit.includes('piece')) {
+              quantityPerPlate = 1.0; // 1 whole piece structure
+            } else if (unit.includes('bottle') || unit.includes('can')) {
+              quantityPerPlate = 0.3; // 30% of standard bottle bottle
+            }
+            
+            totalUsed += (orderItem.qty || 1) * quantityPerPlate;
+          }
+        });
+      });
+
+      // Calculate daily demand consumption average
+      const daysOfUsage = orders.length > 0 ? diffDays : 7;
+      let dailyAvg = totalUsed / daysOfUsage;
+
+      // Professional par calculation: (Average Daily Usage * restock lead time parameter) + safety buffer (1 day safety factor)
+      const computedPar = dailyAvg * (leadTimeSetting + 1);
+      const minVal = item.minThreshold !== undefined ? item.minThreshold : (item.min || 1);
+      
+      // Make sure the dynamic par has a safety buffer bigger than min static threshold
+      let finalPar = Math.max(minVal + 1, Math.round(computedPar * 10) / 10);
+      
+      // If no past orders match, build an estimated par of minVal * 1.5 to act as realistic predictive buffer
+      if (matchCount === 0) {
+        finalPar = Math.round((minVal * 1.5) * 10) / 10;
+      }
+
+      parLevelsMap[item.id] = {
+        par: finalPar,
+        dailyAvg: Math.round(dailyAvg * 100) / 100,
+        totalUsed: Math.round(totalUsed * 10) / 10,
+        periodInDays: daysOfUsage,
+        matchCount
+      };
+    });
+
+    return parLevelsMap;
+  }, [items, orders, leadTimeSetting]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -372,15 +490,40 @@ export default function Inventory() {
 
   // Calculations for KPI Cards
   const totalItems = items.length;
+  
   const criticalItems = items.filter(item => {
     const minVal = item.minThreshold !== undefined ? item.minThreshold : (item.min || 0);
     return (item.qty || 0) <= minVal;
   });
   const criticalCount = criticalItems.length;
 
-  const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Below Dynamic Par Level but not critical yet
+  const belowParItems = items.filter(item => {
+    const minVal = item.minThreshold !== undefined ? item.minThreshold : (item.min || 0);
+    const parInfo = dynamicParLevels[item.id] || { par: minVal * 1.5 };
+    return (item.qty || 0) > minVal && (item.qty || 0) <= parInfo.par;
+  });
+  const belowParCount = belowParItems.length;
+
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    const minVal = item.minThreshold !== undefined ? item.minThreshold : (item.min || 0);
+    const parInfo = dynamicParLevels[item.id] || { par: minVal * 1.5 };
+    const qty = item.qty || 0;
+
+    if (statusFilter === 'critical') {
+      return qty <= minVal;
+    }
+    if (statusFilter === 'belowPar') {
+      return qty > minVal && qty <= parInfo.par;
+    }
+    if (statusFilter === 'optimal') {
+      return qty > parInfo.par;
+    }
+    return true; // statusFilter === 'all'
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -410,7 +553,7 @@ export default function Inventory() {
         <div className={`card p-6 border transition-all ${
           criticalCount > 0 
             ? "bg-rose-50 border-rose-100 text-rose-900 shadow-sm" 
-            : "bg-emerald-50 border-emerald-100 text-emerald-900"
+            : "bg-emerald-50 border-emerald-100 text-emerald-990"
         }`}>
            <div className="flex items-center gap-3 mb-2">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
@@ -418,8 +561,8 @@ export default function Inventory() {
               }`}>
                 <AlertCircle size={18} className="stroke-[2.5]" />
               </div>
-              <span className="font-extrabold uppercase tracking-widest text-xs">
-                Stock Status Warning
+              <span className="font-extrabold uppercase tracking-widest text-[10px]">
+                Critical Low Stock
               </span>
            </div>
            
@@ -429,8 +572,38 @@ export default function Inventory() {
              </p>
              <p className="text-xs font-semibold mt-1 opacity-80">
                {criticalCount > 0 
-                 ? "Ingredients are currently equal to or below their threshold limit!" 
-                 : "Perfect! All ingredients are above their replenishment levels."
+                 ? "Ingredients are equal to or below critical replenishment limits!" 
+                 : "Perfect! No ingredients are in immediate critical state."
+               }
+             </p>
+           </div>
+        </div>
+
+        {/* Dynamic Par Level Alert Card */}
+        <div className={`card p-6 border transition-all ${
+          belowParCount > 0 
+            ? "bg-amber-50/85 border-amber-100 text-amber-900 shadow-sm" 
+            : "bg-zinc-50 border-zinc-200 text-zinc-900"
+        }`}>
+           <div className="flex items-center gap-3 mb-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                belowParCount > 0 ? "bg-amber-500 text-white animate-pulse" : "bg-zinc-650 bg-zinc-600 text-white"
+              }`}>
+                <TrendingUp size={18} className="stroke-[2.5]" />
+              </div>
+              <span className="font-extrabold uppercase tracking-widest text-[10px]">
+                Predictive Demand Buffer
+              </span>
+           </div>
+           
+           <div className="mt-3">
+             <p className="text-3xl font-black">
+               {belowParCount} {belowParCount === 1 ? 'Item' : 'Items'} Below Par
+             </p>
+             <p className="text-xs font-semibold mt-1 text-amber-800">
+               {belowParCount > 0 
+                 ? "Based on past orders, these may deplete soon. Check restock recommended!" 
+                 : "Healthy! All ingredients have appropriate safety cushions."
                }
              </p>
            </div>
@@ -439,30 +612,16 @@ export default function Inventory() {
         {/* Total Ingredients tracked */}
         <div className="card p-6 bg-white border border-zinc-200">
           <div className="flex items-center gap-3 mb-2 text-zinc-500">
-            <div className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-600 flex items-center justify-center">
-              <Layers size={16} />
+            <div className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-650 flex items-center justify-center">
+              <Layers size={16} className="text-zinc-700" />
             </div>
-            <span className="text-xs font-black uppercase tracking-widest">Tracked Ingredients</span>
+            <span className="text-xs font-black uppercase tracking-widest">Active Kitchen Database</span>
           </div>
           <div className="mt-3">
-            <p className="text-3xl font-black text-zinc-900">{totalItems}</p>
-            <p className="text-xs font-semibold text-zinc-400 mt-1">Unique storage formulas registered</p>
-          </div>
-        </div>
-
-        {/* Supply Restock status */}
-        <div className="card p-6 bg-white border border-zinc-200">
-          <div className="flex items-center gap-3 mb-2 text-zinc-500">
-            <div className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-600 flex items-center justify-center">
-              <Sparkles size={16} />
-            </div>
-            <span className="text-xs font-black uppercase tracking-widest text-[#9d5b00] text-amber-600">Replenish Ratio</span>
-          </div>
-          <div className="mt-3">
-            <p className="text-3xl font-black text-zinc-900">
-              {totalItems > 0 ? Math.round(((totalItems - criticalCount) / totalItems) * 100) : 100}%
+            <p className="text-3xl font-black text-zinc-900">{totalItems} Formulas</p>
+            <p className="text-xs font-semibold text-zinc-400 mt-1">
+              {totalItems > 0 ? Math.round(((totalItems - criticalCount - belowParCount) / totalItems) * 100) : 100}% of items are fully optimal
             </p>
-            <p className="text-xs font-semibold text-zinc-400 mt-1">Healthy levels relative to minimum</p>
           </div>
         </div>
       </div>
@@ -621,6 +780,54 @@ export default function Inventory() {
           </div>
         </div>
 
+        {/* Dynamic Status Filters & Restock settings */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-zinc-100">
+          <div className="flex flex-wrap gap-2 animate-in fade-in duration-200">
+            {[
+              { key: 'all', label: `All Storage (${totalItems})` },
+              { key: 'critical', label: `Critical Lows (${criticalCount})` },
+              { key: 'belowPar', label: `Below Par Buffer (${belowParCount})` },
+              { key: 'optimal', label: `Fully Optimal (${totalItems - criticalCount - belowParCount})` }
+            ].map((pill) => (
+              <button
+                key={pill.key}
+                type="button"
+                onClick={() => setStatusFilter(pill.key as any)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-full text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5",
+                  statusFilter === pill.key
+                    ? "bg-zinc-900 text-white border-zinc-900 shadow-sm"
+                    : "bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50"
+                )}
+              >
+                {pill.key === 'critical' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                ) : pill.key === 'belowPar' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                ) : pill.key === 'optimal' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                ) : null}
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100/70 border border-zinc-200 p-2 rounded-xl transition-all">
+            <span className="text-[10px] font-black text-zinc-505 text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+              <Clock size={12} className="text-zinc-650 shrink-0" /> Restock Lead Time:
+            </span>
+            <input 
+              type="number"
+              min="1"
+              max="14"
+              value={leadTimeSetting}
+              onChange={(e) => setLeadTimeSetting(Math.max(1, parseInt(e.target.value) || 2))}
+              className="w-10 bg-white border border-zinc-205 border-zinc-200 rounded py-0.5 px-1 text-center text-xs font-black text-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+            />
+            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-tight">Days</span>
+          </div>
+        </div>
+
         {/* Inventory List Table */}
         {loading ? (
           <div className="py-20 text-center flex flex-col items-center justify-center">
@@ -642,7 +849,8 @@ export default function Inventory() {
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Current Qty</th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Unit</th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Min Threshold</th>
-                  <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Status Status</th>
+                  <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Dynamic Par</th>
+                  <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500">Replenish Status</th>
                   <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-zinc-500 text-right">Actions</th>
                 </tr>
               </thead>
@@ -651,13 +859,20 @@ export default function Inventory() {
                   const qty = item.qty || 0;
                   const threshold = item.minThreshold !== undefined ? item.minThreshold : (item.min || 0);
                   const isLow = qty <= threshold;
+                  const parInfo = dynamicParLevels[item.id] || { par: threshold * 1.5, dailyAvg: 0, totalUsed: 0, matchCount: 0 };
+                  const isBelowPar = qty <= parInfo.par && qty > threshold;
 
                   return (
                     <tr 
                       key={item.id} 
-                      className={`hover:bg-zinc-50/50 transition-colors ${
-                        isLow ? "bg-red-50/20" : ""
-                      }`}
+                      className={cn(
+                        "hover:bg-zinc-50/50 transition-all border-l-4 border-b border-zinc-100",
+                        isLow 
+                          ? "bg-rose-50/25 border-l-rose-500" 
+                          : isBelowPar
+                          ? "bg-amber-50/15 border-l-amber-400"
+                          : "border-l-transparent"
+                      )}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3.5">
@@ -673,16 +888,23 @@ export default function Inventory() {
                           
                           <div className="flex flex-col">
                             <span className="font-bold text-zinc-900 text-sm md:text-base leading-tight">{item.name}</span>
-                            <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-md border w-fit mt-1 uppercase tracking-wider ${
-                              CATEGORY_MAP[detectCategory(item)].color
-                            }`}>
-                              {CATEGORY_MAP[detectCategory(item)].label}
-                            </span>
-                            {isLow && (
-                              <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider flex items-center gap-1 mt-1 font-sans">
-                                ❌ Crucial order needed!
+                            <div className="flex flex-wrap gap-1 mt-1 items-center">
+                              <span className={`inline-block text-[8.5px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-wider ${
+                                CATEGORY_MAP[detectCategory(item)].color
+                              }`}>
+                                {CATEGORY_MAP[detectCategory(item)].label}
                               </span>
-                            )}
+                              {isLow && (
+                                <span className="bg-rose-500 text-white text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md">
+                                  🚨 Urgent Order Info
+                                </span>
+                              )}
+                              {isBelowPar && (
+                                <span className="bg-amber-500 text-black text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md font-extrabold">
+                                  ⏳ Restock Suggested
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -690,9 +912,14 @@ export default function Inventory() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {/* Stock level highlighting */}
-                          <span className={`font-black text-base md:text-lg min-w-[24px] text-center px-2 py-0.5 rounded ${
-                            isLow ? "text-red-600 bg-red-100" : "text-zinc-800"
-                          }`}>
+                          <span className={cn(
+                            "font-black text-base md:text-lg min-w-[24px] text-center px-2 py-0.5 rounded",
+                            isLow 
+                              ? "text-rose-600 bg-rose-100" 
+                              : isBelowPar 
+                              ? "text-amber-755 text-amber-700 bg-amber-100" 
+                              : "text-zinc-800 bg-zinc-105 bg-zinc-100"
+                          )}>
                             {qty}
                           </span>
 
@@ -700,14 +927,14 @@ export default function Inventory() {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => adjustQty(item, -1)}
-                              className="p-1 hover:bg-zinc-200 border border-zinc-200 text-zinc-600 rounded-lg transition-transform active:scale-90"
+                              className="p-1 hover:bg-zinc-200 border border-zinc-200 text-zinc-650 text-zinc-600 rounded-lg transition-transform active:scale-90 cursor-pointer"
                               title="Decrease Stock"
                             >
                               <Minus size={12} />
                             </button>
                             <button
                               onClick={() => adjustQty(item, 1)}
-                              className="p-1 hover:bg-zinc-200 border border-zinc-200 text-zinc-600 rounded-lg transition-transform active:scale-90"
+                              className="p-1 hover:bg-zinc-200 border border-zinc-200 text-zinc-655 text-zinc-600 rounded-lg transition-transform active:scale-90 cursor-pointer"
                               title="Increase Stock"
                             >
                               <Plus size={12} />
@@ -721,20 +948,37 @@ export default function Inventory() {
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="font-mono font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded">
+                        <span className="font-mono font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded border border-zinc-200 text-xs">
                           {threshold} {item.unit || 'units'}
                         </span>
                       </td>
 
                       <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-zinc-805 text-zinc-800 bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-1 rounded w-fit text-xs flex items-center gap-1 shadow-3xs font-black animate-pulse-slow">
+                            <Sparkles size={11} className="text-amber-500 fill-amber-500 shrink-0" />
+                            {parInfo.par} {item.unit || 'units'}
+                          </span>
+                          <span className="text-[9px] text-zinc-450 text-zinc-400 font-bold uppercase mt-1 leading-tight block">
+                            Avg: {parInfo.dailyAvg}/{item.unit}/day
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
                         {isLow ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-extrabold uppercase tracking-widest rounded-lg bg-red-500 text-white border border-red-600 shadow-sm animate-pulse">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[9.5px] font-black uppercase tracking-widest rounded-lg bg-rose-500 text-white border border-rose-600 shadow-sm animate-pulse">
                             <AlertCircle size={10} className="stroke-[3]" />
-                            LOW STOCK
+                            CRITICAL
+                          </span>
+                        ) : isBelowPar ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[9.5px] font-black uppercase tracking-widest rounded-lg bg-amber-400 text-amber-955 text-amber-950 border border-amber-500 shadow-sm">
+                            <AlertCircle size={10} className="stroke-[3]" />
+                            BELOW PAR
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                            🟢 OK
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[9.5px] font-extrabold uppercase tracking-widest rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            🟢 OPTIMAL
                           </span>
                         )}
                       </td>
@@ -743,13 +987,13 @@ export default function Inventory() {
                         <div className="flex items-center justify-end gap-2.5">
                           <button 
                             onClick={() => openEditModal(item)}
-                            className="text-xs font-bold text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-3 py-1.5 rounded-xl bg-white hover:bg-zinc-50 transition-colors shadow-2xs"
+                            className="text-xs font-bold text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-3 py-1.5 rounded-xl bg-white hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
                           >
                             Manage
                           </button>
                           <button 
                             onClick={() => handleDeleteItem(item.id)}
-                            className="p-2 hover:bg-red-50 rounded-lg text-zinc-400 hover:text-red-500 transition-colors"
+                            className="p-2 hover:bg-red-50 rounded-lg text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
                             title="Remove"
                           >
                             <Trash2 size={15} />

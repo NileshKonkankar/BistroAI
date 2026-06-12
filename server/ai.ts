@@ -1,7 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { cache } from "./cache";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY || "",
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 export const aiServerService = {
   async getRecommendations(orderHistory: any[], currentMenu: any[], inventory: any[]) {
