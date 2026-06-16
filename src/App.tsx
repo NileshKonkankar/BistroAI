@@ -89,6 +89,9 @@ export default function App() {
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/staff" element={<Staff />} />
             </Route>
+
+            {/* Fallback layout path to redirect any unknown URLs to home directory */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />
