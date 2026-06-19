@@ -488,6 +488,21 @@ export default function Inventory() {
     }
   };
 
+  const replenishItem = async (item: any, targetQty: number) => {
+    try {
+      if (item.id.length < 5) {
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, qty: targetQty } : i));
+      } else {
+        await updateDoc(doc(db, 'inventory', item.id), {
+          qty: targetQty,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Error replenishing inventory item:", err);
+    }
+  };
+
   // Calculations for KPI Cards
   const totalItems = items.length;
   
@@ -761,6 +776,102 @@ export default function Inventory() {
         </div>
       </div>
 
+      {/* Predefined Threshold Alerts & Quick Refill Control Center */}
+      {criticalCount > 0 && (
+        <div className="bg-rose-50/45 border border-rose-200/80 rounded-3xl p-6 space-y-4 shadow-sm animate-in slide-in-from-top duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                <AlertCircle size={22} className="stroke-[2.5]" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-rose-950 flex items-center gap-1.5">
+                  Stock Warnings: Predefined Threshold Alerts ({criticalCount} Flagged)
+                </h2>
+                <p className="text-xs text-rose-800 font-medium">
+                  The following ingredients have stock levels falling at or below your predefined safety warning thresholds.
+                </p>
+              </div>
+            </div>
+            <div>
+              <span className="text-[10px] bg-rose-200 text-rose-950 font-black px-3 py-1 rounded-full uppercase tracking-widest border border-rose-300">
+                Action Suggested
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {criticalItems.map((item) => {
+              const qty = item.qty || 0;
+              const threshold = item.minThreshold !== undefined ? item.minThreshold : (item.min || 0);
+              const parInfo = dynamicParLevels[item.id] || { par: threshold * 1.5 };
+              const targetPar = Math.ceil(parInfo.par);
+              const missingQty = Math.max(0, targetPar - qty);
+
+              return (
+                <div 
+                  key={`warning-card-${item.id}`}
+                  className="bg-white hover:bg-zinc-50 border border-rose-100 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-3xs transition-all duration-200 group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-zinc-200 shrink-0 bg-zinc-50">
+                        <img 
+                          src={CATEGORY_MAP[detectCategory(item)].image} 
+                          alt={CATEGORY_MAP[detectCategory(item)].label} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-extrabold text-sm text-zinc-900 group-hover:text-rose-900 transition-colors">
+                          {item.name}
+                        </span>
+                        <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                          {CATEGORY_MAP[detectCategory(item)].label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-end">
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Stock Deficit:</span>
+                        <span className="text-sm font-black text-rose-600 block">
+                          {qty} / {threshold} {item.unit || 'units'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-lg flex items-center gap-1 leading-none">
+                        <AlertCircle size={9} className="shrink-0 animate-pulse text-rose-500" />
+                        -{Math.round((1 - (qty / (threshold || 1))) * 100)}%
+                      </span>
+                    </div>
+
+                    {/* Progress visual bar */}
+                    <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-rose-400 to-rose-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.max(5, (qty / (threshold || 1)) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => replenishItem(item, targetPar)}
+                    className="w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white py-2 rounded-xl text-[10.5px] font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    <Plus size={12} className="stroke-[3]" />
+                    <span>Quick Refill (+{Math.ceil(missingQty)} {item.unit || 'units'})</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Primary Inventory Search Toolbar & Feed */}
       <div className="card p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -904,6 +1015,27 @@ export default function Inventory() {
                                   ⏳ Restock Suggested
                                 </span>
                               )}
+                            </div>
+
+                            {/* Stock Health Progress Bar relative to predefined minThreshold */}
+                            <div className="mt-2.5 w-48 space-y-1">
+                              <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                                <span>Safety Health: {Math.round(Math.min(100, (qty / (threshold || 1)) * 100))}%</span>
+                                {isLow && <span className="text-rose-500 font-extrabold">&#9650; Threshold Alert</span>}
+                              </div>
+                              <div className="w-full bg-zinc-100 rounded-full h-1 overflow-hidden">
+                                <div 
+                                  className={cn(
+                                    "h-full rounded-full transition-all duration-500",
+                                    isLow 
+                                      ? "bg-rose-500 animate-pulse" 
+                                      : isBelowPar 
+                                      ? "bg-amber-400" 
+                                      : "bg-emerald-500"
+                                  )}
+                                  style={{ width: `${Math.min(100, Math.max(5, (qty / (threshold || 1)) * 100))}%` }}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
