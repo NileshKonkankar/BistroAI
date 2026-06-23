@@ -44,5 +44,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  // Print a clear warning in the logs but do not throw to prevent crashing the React app on background subscription/onSnapshot permission denials
+  console.warn(`Firestore background operation failed (${operationType} on ${path}). Handled gracefully.`);
 }

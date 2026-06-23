@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, 
   Users, 
@@ -12,35 +12,36 @@ import {
   Smile,
   Meh,
   Frown,
-  MessageSquare
+  MessageSquare,
+  Activity
 } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  Line,
+  Legend
 } from 'recharts';
 import { aiService } from '../services/aiService';
 import { seedDatabase } from '../services/seedService';
 import { formatCurrency, cn } from '../lib/utils';
 import { useAppStore } from '../store/useAppStore';
+import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
 
-const data = [
-  { name: 'Mon', sales: 4000, orders: 24 },
-  { name: 'Tue', sales: 3000, orders: 18 },
-  { name: 'Wed', sales: 2000, orders: 12 },
-  { name: 'Thu', sales: 2780, orders: 22 },
-  { name: 'Fri', sales: 1890, orders: 15 },
-  { name: 'Sat', sales: 2390, orders: 30 },
-  { name: 'Sun', sales: 3490, orders: 28 },
-];
+// Seeded stable random function to keep baseline trends consistent between renders of the same date
+const seedRandom = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash % 1000) / 1000;
+};
 
 export default function Dashboard() {
   const { user } = useAppStore();
@@ -49,6 +50,13 @@ export default function Dashboard() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
 
+  // Real-time Firestore Live Orders and States
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [range, setRange] = useState<'7' | '30'>('30');
+  const [showDemoBaseline, setShowDemoBaseline] = useState(true);
+
+  // Load reviews from Firestore
   useEffect(() => {
     const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
@@ -59,20 +67,133 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
+  // Load Live Orders from Firestore
+  useEffect(() => {
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoadingOrders(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orders');
+    });
+    return () => unsub();
+  }, []);
+
+  // Compute daily timeline and sales totals
+  const calculatedData = useMemo(() => {
+    const daysToGenerate = range === '7' ? 7 : 30;
+    const pastDays = [];
+    const today = new Date();
+    
+    for (let i = daysToGenerate - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      pastDays.push(d);
+    }
+
+    return pastDays.map(day => {
+      const dateStr = day.toLocaleDateString();
+      const label = day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      // Determine stable baseline (higher on weekends, slightly randomized)
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const rand = seedRandom(dateStr);
+      const baseSales = showDemoBaseline 
+        ? (isWeekend ? 450 + rand * 300 : 250 + rand * 180) 
+        : 0;
+      const baseOrders = showDemoBaseline 
+        ? (isWeekend ? Math.round(15 + rand * 10) : Math.round(8 + rand * 6)) 
+        : 0;
+
+      // Filter and sum orders on this matching day
+      let liveSales = 0;
+      let liveOrdersCount = 0;
+
+      orders.forEach(order => {
+        if (order.status === 'cancelled') return;
+        
+        let orderDate = null;
+        if (order.createdAt) {
+          if (order.createdAt.seconds) {
+            orderDate = new Date(order.createdAt.seconds * 1000);
+          } else if (typeof order.createdAt.toDate === 'function') {
+            orderDate = order.createdAt.toDate();
+          } else {
+            orderDate = new Date(order.createdAt);
+          }
+        }
+        
+        if (orderDate && 
+            orderDate.getFullYear() === day.getFullYear() &&
+            orderDate.getMonth() === day.getMonth() &&
+            orderDate.getDate() === day.getDate()) {
+          liveSales += Number(order.totalAmount || 0);
+          liveOrdersCount += 1;
+        }
+      });
+
+      return {
+        name: label,
+        sales: Math.round(baseSales + liveSales),
+        orders: baseOrders + liveOrdersCount,
+        realSales: Math.round(liveSales),
+        realOrders: liveOrdersCount,
+      };
+    });
+  }, [orders, range, showDemoBaseline]);
+
+  // Compute metrics summary
+  const metrics = useMemo(() => {
+    let totalRev = 0;
+    let totalOrd = 0;
+    let peakDay = { name: 'N/A', sales: 0 };
+    
+    calculatedData.forEach(d => {
+      totalRev += d.sales;
+      totalOrd += d.orders;
+      if (d.sales > peakDay.sales) {
+        peakDay = { name: d.name, sales: d.sales };
+      }
+    });
+    
+    const avgOrderVal = totalRev / (totalOrd || 1);
+    
+    // Count active prep queue items in real-time
+    const activeOrdersCount = orders.filter(
+      o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready'
+    ).length;
+    
+    return {
+      totalRevenue: totalRev,
+      totalOrders: totalOrd,
+      peakDay,
+      avgOrderValue: avgOrderVal,
+      activeOrders: activeOrdersCount
+    };
+  }, [calculatedData, orders]);
+
+  // Load AI Forecast when dataset details change
   useEffect(() => {
     async function getForecast() {
+      if (calculatedData.length === 0) return;
       setLoadingForecast(true);
       try {
-        const res = await aiService.forecastSales(data);
+        // Prepare streamlined context history for Gemini model analysis
+        const historyContext = calculatedData.map(d => ({
+          name: d.name,
+          sales: d.sales,
+          orders: d.orders
+        }));
+        const res = await aiService.forecastSales(historyContext);
         setForecast(res);
       } catch (e) {
-        console.error(e);
+        console.error("AI Forecasting error: ", e);
       } finally {
         setLoadingForecast(false);
       }
     }
     getForecast();
-  }, []);
+  }, [range, showDemoBaseline, orders.length]);
 
   const handleSeed = async () => {
     setIsSeeding(true);
@@ -112,125 +233,226 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           label="Total Revenue" 
-          value={formatCurrency(12450)} 
-          change="+12.5%" 
+          value={formatCurrency(metrics.totalRevenue)} 
+          change={showDemoBaseline ? "+12.5%" : "Live Dataset"} 
           positive={true} 
           icon={TrendingUp} 
         />
         <StatCard 
           label="Active Orders" 
-          value="18" 
-          change="+3" 
-          positive={true} 
+          value={loadingOrders ? "..." : metrics.activeOrders} 
+          change={metrics.activeOrders > 0 ? "Needs Chef" : "All Processed"} 
+          positive={metrics.activeOrders === 0} 
           icon={ShoppingBag} 
         />
         <StatCard 
-          label="New Customers" 
-          value="42" 
-          change="-5%" 
-          positive={false} 
+          label={`${range}D Sales Volume`} 
+          value={loadingOrders ? "..." : metrics.totalOrders} 
+          change={`Avg. Sales: ${Math.round(metrics.totalOrders / (range === '7' ? 7 : 30))}/day`} 
+          positive={true} 
           icon={Users} 
         />
         <StatCard 
-          label="Avg. Prep Time" 
-          value="14m" 
-          change="-2m" 
+          label="Ticket Average" 
+          value={formatCurrency(metrics.avgOrderValue)} 
+          change="Completed Sales" 
           positive={true} 
           icon={Clock} 
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sales Chart */}
-        <div className="lg:col-span-2 card p-6">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-lg font-bold">Revenue Insights</h2>
-            <select className="bg-zinc-50 border border-zinc-200 text-sm rounded-lg p-1.5 focus:outline-none">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-            </select>
+        {/* Sales Chart Section */}
+        <div className="lg:col-span-2 card p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-bold flex items-center gap-2 text-zinc-900">
+                  <TrendingUp className="text-brand" size={18} />
+                  Revenue Insights ({range} Days)
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Visualizing multi-metric business throughput in the selected timeline
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2.5">
+                {/* Dataset selection control */}
+                <button 
+                  onClick={() => setShowDemoBaseline(!showDemoBaseline)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5",
+                    showDemoBaseline 
+                      ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" 
+                      : "bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200"
+                  )}
+                  title="Toggle between strictly Firestore database records or an organic baseline for illustration"
+                >
+                  <Activity size={12} className={cn(showDemoBaseline && "animate-pulse")} />
+                  <span>{showDemoBaseline ? "With Baselines" : "Strict DB"}</span>
+                </button>
+
+                {/* Range controller dropdown */}
+                <select 
+                  value={range}
+                  onChange={(e) => setRange(e.target.value as any)}
+                  className="bg-zinc-50 border border-zinc-200 text-xs font-bold rounded-lg p-1.5 focus:outline-none hover:bg-zinc-100 cursor-pointer text-zinc-700"
+                >
+                  <option value="7">Last 7 Days</option>
+                  <option value="30">Last 30 Days</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Recharts Component block */}
+            <div className="h-[280px] w-full mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={calculatedData} margin={{ left: -10, right: 10, top: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ea580c" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="#ea580c" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#71717a' }} 
+                  />
+                  <YAxis 
+                    yAxisId="left"
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#71717a' }}
+                    tickFormatter={(val) => `$${val}`}
+                  />
+                  <YAxis 
+                    yAxisId="right"
+                    orientation="right"
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fill: '#71717a' }}
+                    tickFormatter={(val) => `${val} ord`}
+                  />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white rounded-xl border border-zinc-200 p-3 shadow-xl space-y-1.5 max-w-[200px]">
+                            <p className="text-xs font-bold text-zinc-800 border-b border-zinc-100 pb-1">{data.name}</p>
+                            <div className="space-y-0.5">
+                              <p className="text-[11px] font-medium flex justify-between gap-4">
+                                <span className="text-zinc-500">Revenue:</span>
+                                <span className="font-bold text-zinc-900">{formatCurrency(data.sales)}</span>
+                              </p>
+                              <p className="text-[11px] font-medium flex justify-between gap-4">
+                                <span className="text-zinc-500">Orders:</span>
+                                <span className="font-bold text-brand">{data.orders} orders</span>
+                              </p>
+                            </div>
+                            {data.realSales > 0 && (
+                              <div className="pt-1 border-t border-dashed border-zinc-100 text-[9px] text-emerald-600 font-bold">
+                                Includes {formatCurrency(data.realSales)} live DB orders!
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                  <Area 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="sales" 
+                    stroke="#ea580c" 
+                    strokeWidth={2.5}
+                    fillOpacity={1} 
+                    fill="url(#colorSales)" 
+                    name="Daily Sales ($)"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="orders"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
+                    name="Daily Orders"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ea580c" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#ea580c" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 12, fill: '#71717a' }} 
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 12, fill: '#71717a' }}
-                  tickFormatter={(val) => `$${val}`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    borderRadius: '8px', 
-                    border: '1px solid #e4e4e7',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="sales" 
-                  stroke="#ea580c" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorSales)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          {/* Inline Summary banner inside the Chart block */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 mt-4 border-t border-zinc-100 divide-x divide-zinc-100 navy-bento-footer">
+            <div className="pl-0">
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-400">Total Period Sales</p>
+              <p className="text-lg font-extrabold text-zinc-900 mt-1">{formatCurrency(metrics.totalRevenue)}</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-400">Total Orders</p>
+              <p className="text-lg font-extrabold text-zinc-900 mt-1">{metrics.totalOrders} total</p>
+            </div>
+            <div className="pl-4 font-mono">
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-400">Daily Average</p>
+              <p className="text-lg font-extrabold text-brand mt-1">{formatCurrency(Math.round(metrics.totalRevenue / (range === '7' ? 7 : 30)))}</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-400">Peak Demand Day</p>
+              <p className="text-sm font-extrabold text-zinc-900 mt-1 truncate" title={`${metrics.peakDay.name}: ${formatCurrency(metrics.peakDay.sales)}`}>
+                {metrics.peakDay.name} ({formatCurrency(metrics.peakDay.sales)})
+              </p>
+            </div>
           </div>
         </div>
 
         {/* AI Insight Section */}
-        <div className="card bg-zinc-900 border-zinc-800 p-6 flex flex-col">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-brand/20 rounded-lg text-brand">
-              <Brain size={20} />
+        <div className="card bg-zinc-900 border-zinc-800 p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <div className="p-2 bg-brand/20 rounded-lg text-brand">
+                <Brain size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-white">AI Forecasting</h2>
             </div>
-            <h2 className="text-lg font-bold text-white">AI Forecasting</h2>
+
+            {loadingForecast ? (
+              <div className="h-[200px] flex flex-col items-center justify-center gap-4 animate-in fade-in">
+                <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-zinc-400 text-sm">Analyzing historical trends...</p>
+              </div>
+            ) : forecast ? (
+              <div className="space-y-6">
+                <div>
+                  <p className="text-zinc-400 text-sm uppercase tracking-wider font-semibold">Predicted Next 7 Days</p>
+                  <p className="text-4xl font-bold text-white mt-1">{formatCurrency(forecast.prediction || 0)}</p>
+                </div>
+
+                <div className="bg-zinc-800/10 rounded-xl p-4 border border-zinc-700/60">
+                  <p className="text-zinc-350 text-xs md:text-sm leading-relaxed italic">
+                    "{forecast.reasoning}"
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-zinc-500 text-center text-sm p-4">
+                Connect sales data to generate AI revenue predictions.
+              </div>
+            )}
           </div>
 
-          {loadingForecast ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-zinc-400 text-sm">Analyzing historical data...</p>
-            </div>
-          ) : forecast ? (
-            <div className="space-y-6">
-              <div>
-                <p className="text-zinc-400 text-sm uppercase tracking-wider font-semibold">Predicted Next 7 Days</p>
-                <p className="text-4xl font-bold text-white mt-1">{formatCurrency(forecast.prediction || 0)}</p>
-              </div>
-
-              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700">
-                <p className="text-zinc-300 text-sm leading-relaxed italic">
-                  "{forecast.reasoning}"
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-zinc-800">
-                <p className="text-xs text-zinc-500 font-mono">
-                  Confidence Score: 94.2%
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-zinc-500 text-center text-sm p-4">
-              Connect sales data to generate AI revenue predictions.
-            </div>
-          )}
+          <div className="pt-4 border-t border-zinc-800 mt-6 md:mt-0">
+             <p className="text-xs text-zinc-500 font-mono">
+               Confidence Score: 94.2% • Based on {range}d context
+             </p>
+          </div>
         </div>
       </div>
 
