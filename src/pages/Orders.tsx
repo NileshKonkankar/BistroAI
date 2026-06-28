@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   ClipboardList, 
   Clock, 
@@ -87,6 +87,14 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'tables'>('orders');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [ordersFilter, setOrdersFilter] = useState<'active' | 'all'>('active');
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (ordersFilter === 'all') return true;
+      return o.status === 'pending' || o.status === 'preparing' || o.status === 'ready';
+    });
+  }, [orders, ordersFilter]);
   
   // Kitchen Display mode state
   const [isKitchenMode, setIsKitchenMode] = useState(false);
@@ -474,12 +482,13 @@ export default function Orders() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4">
-                {orders
-                  .filter(order => {
-                    if (kdsFilter === 'active') return order.status === 'pending' || order.status === 'preparing';
-                    return order.status === kdsFilter;
-                  })
-                  .map((order) => {
+                <AnimatePresence mode="popLayout">
+                  {orders
+                    .filter(order => {
+                      if (kdsFilter === 'active') return order.status === 'pending' || order.status === 'preparing';
+                      return order.status === kdsFilter;
+                    })
+                    .map((order) => {
                     const elapsed = getElapsedTimeInfo(order.createdAt);
                     const isOverdue = elapsed.text.includes('URGENT');
                     const sizeMap = {
@@ -490,7 +499,12 @@ export default function Orders() {
                     const currentSizes = sizeMap[kdsFontSize];
 
                     return (
-                      <div 
+                      <motion.div 
+                        layout
+                        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -15 }}
+                        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                         key={order.id}
                         className={cn(
                           "bg-black rounded-3xl overflow-hidden flex flex-col justify-between transition-all shadow-2xl relative",
@@ -623,24 +637,61 @@ export default function Orders() {
                             </button>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
+                </AnimatePresence>
               </div>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <AnimatePresence>
-            {orders.map((order) => (
-              <motion.div 
-                layout
-                key={order.id}
-                className={cn(
-                  "card group hover:border-zinc-300 transition-all overflow-hidden",
-                  expandedOrderId === order.id && "border-brand/30 shadow-lg ring-1 ring-brand/5"
-                )}
-              >
+          <div className="space-y-4">
+            {/* Elegant horizontal filter tabs for standard active/all view */}
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setOrdersFilter('active')}
+                  className={cn(
+                    "px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
+                    ordersFilter === 'active'
+                      ? "bg-zinc-100 text-zinc-900 font-extrabold"
+                      : "text-zinc-400 hover:text-zinc-600"
+                  )}
+                >
+                  Active ({orders.filter(o => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready').length})
+                </button>
+                <button
+                  onClick={() => setOrdersFilter('all')}
+                  className={cn(
+                    "px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
+                    ordersFilter === 'all'
+                      ? "bg-zinc-100 text-zinc-900 font-extrabold"
+                      : "text-zinc-400 hover:text-zinc-600"
+                  )}
+                >
+                  All History ({orders.length})
+                </button>
+              </div>
+              <span className="text-[10px] font-mono text-zinc-400 uppercase">
+                Showing {filteredOrders.length} orders
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <AnimatePresence mode="popLayout">
+                {filteredOrders.map((order) => (
+                  <motion.div 
+                    layout
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -15 }}
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    key={order.id}
+                    className={cn(
+                      "card group hover:border-zinc-300 transition-all overflow-hidden",
+                      expandedOrderId === order.id && "border-brand/30 shadow-lg ring-1 ring-brand/5"
+                    )}
+                  >
                 <div 
                   className="p-4 border-b border-zinc-100 flex items-center justify-between bg-white cursor-pointer select-none"
                   onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
@@ -868,7 +919,8 @@ export default function Orders() {
             ))}
           </AnimatePresence>
         </div>
-        )
+      </div>
+      )
       ) : (
         <div className="space-y-6">
           {/* Status Legend */}
@@ -898,14 +950,20 @@ export default function Orders() {
         </div>
       )}
 
-      {!loading && orders.length === 0 && (
+      {!loading && filteredOrders.length === 0 && (
         <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
            <div className="w-20 h-20 bg-zinc-100 rounded-3xl flex items-center justify-center text-zinc-300">
               <ClipboardList size={40} />
            </div>
            <div>
-              <p className="text-zinc-900 font-bold text-lg">No active orders</p>
-              <p className="text-zinc-500 max-w-xs mx-auto">When customers place orders, they will appear here in real-time.</p>
+              <p className="text-zinc-900 font-bold text-lg">
+                {ordersFilter === 'active' ? 'No active orders' : 'No order history'}
+              </p>
+              <p className="text-zinc-500 max-w-xs mx-auto">
+                {ordersFilter === 'active' 
+                  ? 'When customers place orders, they will appear here in real-time.' 
+                  : 'No orders have been recorded in the database yet.'}
+              </p>
            </div>
         </div>
       )}
