@@ -69,6 +69,16 @@ async function startServer() {
     }
   });
 
+  app.post("/api/ai/feedback-summary", async (req, res) => {
+    try {
+      const { reviews } = req.body;
+      const result = await aiServerService.analyzeFeedbackSummary(reviews || []);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });

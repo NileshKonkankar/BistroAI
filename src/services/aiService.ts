@@ -39,5 +39,15 @@ export const aiService = {
     });
     const data = await res.json();
     return data.response;
+  },
+
+  // 5. Customer Feedback Summary
+  async getFeedbackSummary(reviews: any[]) {
+    const res = await fetch('/api/ai/feedback-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviews })
+    });
+    return res.json();
   }
 };

@@ -13,7 +13,12 @@ import {
   Meh,
   Frown,
   MessageSquare,
-  Activity
+  Activity,
+  Utensils,
+  Sparkles,
+  Coins,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -49,6 +54,8 @@ export default function Dashboard() {
   const [loadingForecast, setLoadingForecast] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [feedbackSummary, setFeedbackSummary] = useState<any>(null);
+  const [loadingFeedbackSummary, setLoadingFeedbackSummary] = useState(false);
 
   // Real-time Firestore Live Orders and States
   const [orders, setOrders] = useState<any[]>([]);
@@ -66,6 +73,87 @@ export default function Dashboard() {
     });
     return () => unsub();
   }, []);
+
+  // Fetch AI feedback summary
+  useEffect(() => {
+    async function loadFeedbackSummary() {
+      if (reviews.length === 0) return;
+      setLoadingFeedbackSummary(true);
+      try {
+        const res = await aiService.getFeedbackSummary(reviews);
+        setFeedbackSummary(res);
+      } catch (e) {
+        console.error("Error fetching feedback summary: ", e);
+      } finally {
+        setLoadingFeedbackSummary(false);
+      }
+    }
+    loadFeedbackSummary();
+  }, [reviews]);
+
+  const fallbackAspects = useMemo(() => {
+    if (reviews.length === 0) return null;
+    
+    // Simple frontend semantic mapper fallback
+    const text = reviews.map(r => (r.comment || '').toLowerCase()).join(' ');
+    
+    const countOccurrences = (words: string[]) => {
+      let count = 0;
+      words.forEach(w => {
+        const matches = text.match(new RegExp(w, 'g'));
+        if (matches) count += matches.length;
+      });
+      return count;
+    };
+
+    const foodPos = countOccurrences(["delicious", "taste", "great food", "excellent", "yummy", "tasty", "love", "amazing"]);
+    const foodNeg = countOccurrences(["bland", "salty", "cold", "undercooked", "burnt", "poor taste", "disappointed", "bad"]);
+    const foodScore = Math.max(10, Math.min(100, Math.round(55 + (foodPos - foodNeg) * 8)));
+
+    const servicePos = countOccurrences(["friendly", "fast", "attentive", "quick", "polite", "helpful", "hospitality"]);
+    const serviceNeg = countOccurrences(["slow", "rude", "delayed", "ignored", "cold service", "unfriendly", "bad service"]);
+    const serviceScore = Math.max(10, Math.min(100, Math.round(52 + (servicePos - serviceNeg) * 8)));
+
+    const ambiancePos = countOccurrences(["vibe", "cozy", "cosy", "beautiful", "music", "decor", "atmosphere", "romantic", "quiet"]);
+    const ambianceNeg = countOccurrences(["noisy", "loud", "dark", "bright", "ugly", "crowded", "boring", "atmosphere was bad"]);
+    const ambianceScore = Math.max(10, Math.min(100, Math.round(50 + (ambiancePos - ambianceNeg) * 8)));
+
+    const valuePos = countOccurrences(["value", "worth", "reasonable", "cheap", "generous", "affordable", "good portion", "fair price"]);
+    const valueNeg = countOccurrences(["expensive", "overpriced", "small portion", "costly", "not worth", "rip off", "pricey"]);
+    const valueScore = Math.max(10, Math.min(100, Math.round(48 + (valuePos - valueNeg) * 8)));
+
+    const getSentiment = (score: number) => {
+      if (score > 60) return "positive";
+      if (score < 40) return "negative";
+      return "neutral";
+    };
+
+    const avgRating = reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length;
+
+    return {
+      food: {
+        sentiment: getSentiment(foodScore),
+        score: foodScore,
+        summary: foodScore > 60 ? "Dishes are praised for exceptional flavors and fresh ingredients." : foodScore < 40 ? "Flavor consistency or presentation has minor complaints." : "Reviews suggest satisfying food flavors overall."
+      },
+      service: {
+        sentiment: getSentiment(serviceScore),
+        score: serviceScore,
+        summary: serviceScore > 60 ? "Staff response is noted as prompt, friendly, and welcoming." : serviceScore < 40 ? "Wait times during rush hours were cited as areas for focus." : "Staff behavior is described as standard and polite."
+      },
+      ambiance: {
+        sentiment: getSentiment(ambianceScore),
+        score: ambianceScore,
+        summary: ambianceScore > 60 ? "Acoustics, cozy lighting, and background music create a wonderful vibe." : ambianceScore < 40 ? "A few reviews report seating congestion or higher noise levels." : "The dining environment is pleasant and comfortable."
+      },
+      value: {
+        sentiment: getSentiment(valueScore),
+        score: valueScore,
+        summary: valueScore > 60 ? "Diners appreciate the generous portions and premium ingredients." : valueScore < 40 ? "Menu pricing is considered high relative to part sizes." : "The dining value is rated as fair and balanced."
+      },
+      overallSummary: `Based on ${reviews.length} reviews, the restaurant holds an average score of ${avgRating.toFixed(1)}/5.0. ${avgRating >= 4.0 ? "Hospitality and taste are core strengths." : "Certain operational details show opportunity for optimization."}`
+    };
+  }, [reviews]);
 
   // Load Live Orders from Firestore
   useEffect(() => {
@@ -481,9 +569,9 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Sentiment KPI block */}
+            {/* Column 1: Sentiment KPI block */}
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-405 text-zinc-400 font-bold">Semantic Sentiment</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 font-bold">Semantic Sentiment</h3>
               <div className="space-y-3.5 bg-zinc-50/70 border border-zinc-200/50 p-5 rounded-2xl">
                 {/* Positive */}
                 <div>
@@ -503,7 +591,7 @@ export default function Dashboard() {
 
                 {/* Neutral */}
                 <div>
-                  <div className="flex justify-between text-xs font-bold text-zinc-650 text-zinc-600 mb-1.5 items-center">
+                  <div className="flex justify-between text-xs font-bold text-zinc-600 mb-1.5 items-center">
                     <span className="flex items-center gap-1">😐 Neutral</span>
                     <span>
                       {reviews.filter(r => r.sentiment === 'neutral').length} ({reviews.length > 0 ? Math.round((reviews.filter(r => r.sentiment === 'neutral').length / reviews.length) * 100) : 0}%)
@@ -548,21 +636,128 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* List of Latest Reviews with Sentiments */}
-            <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-405 text-zinc-400 font-bold">Latest Customer reviews</h3>
-              <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 divide-y divide-zinc-100">
+            {/* Column 2: AI Multi-Aspect Sentiment Report */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 font-bold">AI Multi-Aspect Report</h3>
+                {loadingFeedbackSummary && (
+                  <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
+                    <span className="w-1.5 h-1.5 bg-brand rounded-full animate-ping" />
+                    Analyzing...
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                {[
+                  {
+                    key: 'food',
+                    label: 'Food Taste & Quality',
+                    icon: Utensils,
+                    colorClass: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+                    progressColor: 'bg-emerald-500',
+                    data: (feedbackSummary || fallbackAspects)?.food
+                  },
+                  {
+                    key: 'service',
+                    label: 'Service & Hospitality',
+                    icon: Clock,
+                    colorClass: 'text-blue-600 bg-blue-50 border-blue-100',
+                    progressColor: 'bg-blue-500',
+                    data: (feedbackSummary || fallbackAspects)?.service
+                  },
+                  {
+                    key: 'ambiance',
+                    label: 'Atmosphere & Vibe',
+                    icon: Sparkles,
+                    colorClass: 'text-purple-600 bg-purple-50 border-purple-100',
+                    progressColor: 'bg-purple-500',
+                    data: (feedbackSummary || fallbackAspects)?.ambiance
+                  },
+                  {
+                    key: 'value',
+                    label: 'Price & Value Ratio',
+                    icon: Coins,
+                    colorClass: 'text-amber-600 bg-amber-50 border-amber-100',
+                    progressColor: 'bg-amber-500',
+                    data: (feedbackSummary || fallbackAspects)?.value
+                  }
+                ].map((cat) => {
+                  const IconComponent = cat.icon;
+                  const aspectData = cat.data || { sentiment: 'neutral', score: 50, summary: '' };
+                  
+                  return (
+                    <div key={cat.key} className="bg-zinc-50/70 border border-zinc-200/40 rounded-xl p-3 space-y-2 transition-all hover:bg-zinc-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("p-1.5 rounded-lg border", cat.colorClass)}>
+                            <IconComponent size={14} />
+                          </div>
+                          <span className="text-xs font-bold text-zinc-800">{cat.label}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5">
+                          {aspectData.sentiment === 'positive' && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                              <ThumbsUp size={9} className="fill-emerald-100" /> Positive
+                            </span>
+                          )}
+                          {aspectData.sentiment === 'neutral' && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
+                              <Meh size={9} /> Neutral
+                            </span>
+                          )}
+                          {aspectData.sentiment === 'negative' && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                              <ThumbsDown size={9} className="fill-rose-50" /> Negative
+                            </span>
+                          )}
+                          <span className="text-xs font-black text-zinc-900">{aspectData.score}%</span>
+                        </div>
+                      </div>
+                      
+                      <div className="w-full h-1 bg-zinc-200/50 rounded-full overflow-hidden">
+                        <div 
+                          className={cn("h-full rounded-full transition-all duration-500", cat.progressColor)}
+                          style={{ width: `${aspectData.score}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-zinc-500 italic">"{aspectData.summary}"</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {(feedbackSummary || fallbackAspects)?.overallSummary && (
+                <div className="bg-amber-50/30 border border-amber-100/70 rounded-2xl p-4 flex gap-3 mt-4">
+                  <div className="p-2 bg-amber-50 rounded-xl text-amber-600 h-fit border border-amber-100/50">
+                    <Brain size={16} className="animate-pulse" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-800">AI Synthesized Report</p>
+                    <p className="text-[11px] leading-relaxed text-zinc-600 font-medium">
+                      {(feedbackSummary || fallbackAspects).overallSummary}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Column 3: List of Latest Reviews with Sentiments */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 font-bold">Latest Customer Reviews</h3>
+              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 divide-y divide-zinc-100">
                 {reviews.slice(0, 10).map((review, idx) => (
                   <div key={review.id || idx} className="pt-4 first:pt-0 animate-in fade-in">
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-zinc-800">{review.customerEmail}</span>
+                        <span className="text-xs font-bold text-zinc-800 truncate max-w-[120px]">{review.customerEmail}</span>
                         <span className="w-1 h-1 bg-zinc-300 rounded-full" />
                         <span className="text-[10px] font-bold text-zinc-400">
                           {review.createdAt ? (review.createdAt.toDate ? review.createdAt.toDate() : new Date(review.createdAt)).toLocaleDateString() : 'Recent'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-0.5 text-amber-500">
+                      <div className="flex items-center gap-0.5 text-amber-500 shrink-0">
                         {[...Array(5)].map((_, i) => (
                           <Star 
                             key={i} 

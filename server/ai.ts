@@ -116,5 +116,158 @@ export const aiServerService = {
       }
     });
     return response.text;
+  },
+
+  async analyzeFeedbackSummary(reviews: any[]) {
+    if (!reviews || reviews.length === 0) {
+      return {
+        food: { sentiment: "neutral", score: 50, summary: "No food feedback yet." },
+        service: { sentiment: "neutral", score: 50, summary: "No service feedback yet." },
+        ambiance: { sentiment: "neutral", score: 50, summary: "No ambiance feedback yet." },
+        value: { sentiment: "neutral", score: 50, summary: "No value feedback yet." },
+        overallSummary: "No reviews to analyze."
+      };
+    }
+
+    const cacheKey = `feedbackSummary:${reviews.length}:${JSON.stringify(reviews.slice(0, 5).map(r => r.id))}`;
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Analyze these customer reviews for a restaurant:
+        ${JSON.stringify(reviews.map(r => ({ rating: r.rating, comment: r.comment, sentiment: r.sentiment })))}
+        
+        Provide a structured analysis of the restaurant's performance in four categories:
+        1. "food" (Food Quality & Taste)
+        2. "service" (Staff, Speed, Cleanliness, Service)
+        3. "ambiance" (Vibe, Decor, Atmosphere)
+        4. "value" (Value for Money, Portion size, Pricing)
+        
+        For each category, return:
+        - sentiment: "positive" | "neutral" | "negative"
+        - score: a percentage score from 0 to 100 representing user satisfaction
+        - summary: a one-sentence summary of customer opinions in this category (e.g., "Customers praise the truffle pasta but mention the pizza is average.")
+        
+        Also provide an "overallSummary" which is a concise 1-2 sentence overview of the general sentiment and key action points.
+        
+        Produce a valid JSON object.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              food: {
+                type: Type.OBJECT,
+                properties: {
+                  sentiment: { type: Type.STRING },
+                  score: { type: Type.INTEGER },
+                  summary: { type: Type.STRING }
+                },
+                required: ["sentiment", "score", "summary"]
+              },
+              service: {
+                type: Type.OBJECT,
+                properties: {
+                  sentiment: { type: Type.STRING },
+                  score: { type: Type.INTEGER },
+                  summary: { type: Type.STRING }
+                },
+                required: ["sentiment", "score", "summary"]
+              },
+              ambiance: {
+                type: Type.OBJECT,
+                properties: {
+                  sentiment: { type: Type.STRING },
+                  score: { type: Type.INTEGER },
+                  summary: { type: Type.STRING }
+                },
+                required: ["sentiment", "score", "summary"]
+              },
+              value: {
+                type: Type.OBJECT,
+                properties: {
+                  sentiment: { type: Type.STRING },
+                  score: { type: Type.INTEGER },
+                  summary: { type: Type.STRING }
+                },
+                required: ["sentiment", "score", "summary"]
+              },
+              overallSummary: { type: Type.STRING }
+            },
+            required: ["food", "service", "ambiance", "value", "overallSummary"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || "{}");
+      await cache.set(cacheKey, result, 600); // 10 minutes cache
+      return result;
+    } catch (error) {
+      console.error("Error in analyzeFeedbackSummary:", error);
+      return this.fallbackFeedbackSummary(reviews);
+    }
+  },
+
+  fallbackFeedbackSummary(reviews: any[]) {
+    const text = reviews.map(r => (r.comment || "").toLowerCase()).join(" ");
+    
+    const countKeywords = (keywords: string[]) => {
+      let count = 0;
+      keywords.forEach(kw => {
+        const matches = text.match(new RegExp(kw, 'g'));
+        if (matches) count += matches.length;
+      });
+      return count;
+    };
+
+    const foodPos = countKeywords(["delicious", "taste", "great food", "excellent", "yummy", "tasty", "love"]);
+    const foodNeg = countKeywords(["bland", "salty", "cold", "undercooked", "burnt", "poor taste", "disappointed"]);
+    const foodScore = Math.max(0, Math.min(100, Math.round(55 + (foodPos - foodNeg) * 10)));
+
+    const servicePos = countKeywords(["friendly", "fast", "attentive", "quick", "polite", "helpful", "perfect service"]);
+    const serviceNeg = countKeywords(["slow", "rude", "delayed", "ignored", "cold service", "unfriendly"]);
+    const serviceScore = Math.max(0, Math.min(100, Math.round(52 + (servicePos - serviceNeg) * 10)));
+
+    const ambiancePos = countKeywords(["vibe", "cozy", "cosy", "beautiful", "music", "decor", "atmospheric", "quiet"]);
+    const ambianceNeg = countKeywords(["noisy", "loud", "dark", "bright", "ugly", "crowded", "boring"]);
+    const ambianceScore = Math.max(0, Math.min(100, Math.round(50 + (ambiancePos - ambianceNeg) * 10)));
+
+    const valuePos = countKeywords(["value", "worth", "reasonable", "cheap", "generous", "affordable", "good portion"]);
+    const valueNeg = countKeywords(["expensive", "overpriced", "small portion", "costly", "not worth", "rip off"]);
+    const valueScore = Math.max(0, Math.min(100, Math.round(50 + (valuePos - valueNeg) * 10)));
+
+    const getSentiment = (score: number) => {
+      if (score > 60) return "positive";
+      if (score < 40) return "negative";
+      return "neutral";
+    };
+
+    const avgRating = reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length;
+
+    return {
+      food: {
+        sentiment: getSentiment(foodScore),
+        score: foodScore,
+        summary: foodScore > 60 ? "Food items are highly praised for taste and quality ingredients." : foodScore < 40 ? "There are critical complaints regarding flavor profiles." : "Customer reactions to food flavors and menu choices are balanced."
+      },
+      service: {
+        sentiment: getSentiment(serviceScore),
+        score: serviceScore,
+        summary: serviceScore > 60 ? "Service is reported as swift, friendly, and accommodating." : serviceScore < 40 ? "Several reviews express dissatisfaction over service speed or wait times." : "Service response and wait times are rated as satisfactory."
+      },
+      ambiance: {
+        sentiment: getSentiment(ambianceScore),
+        score: ambianceScore,
+        summary: ambianceScore > 60 ? "Guests love the restaurant’s cozy vibe, decor, and setting." : ambianceScore < 40 ? "Noise levels or comfort have received some negative comments." : "Atmosphere is found standard and pleasant."
+      },
+      value: {
+        sentiment: getSentiment(valueScore),
+        score: valueScore,
+        summary: valueScore > 60 ? "Portion sizes and ingredient quality represent great value." : valueScore < 40 ? "Reviews highlight high menu prices relative to portion sizes." : "The pricing is considered fair by the majority of diners."
+      },
+      overallSummary: `Based on ${reviews.length} reviews, the restaurant holds an average score of ${avgRating.toFixed(1)}/5.0. ${avgRating >= 4.0 ? "Customer satisfaction is robust, with highlights on taste and hospitality." : "Some areas like service speed or pricing could benefit from optimization."}`
+    };
   }
 };
