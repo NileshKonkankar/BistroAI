@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   TrendingUp, 
   Users, 
@@ -325,6 +326,7 @@ export default function Dashboard() {
           change={showDemoBaseline ? "+12.5%" : "Live Dataset"} 
           positive={true} 
           icon={TrendingUp} 
+          delay={0}
         />
         <StatCard 
           label="Active Orders" 
@@ -332,6 +334,7 @@ export default function Dashboard() {
           change={metrics.activeOrders > 0 ? "Needs Chef" : "All Processed"} 
           positive={metrics.activeOrders === 0} 
           icon={ShoppingBag} 
+          delay={0.06}
         />
         <StatCard 
           label={`${range}D Sales Volume`} 
@@ -339,6 +342,7 @@ export default function Dashboard() {
           change={`Avg. Sales: ${Math.round(metrics.totalOrders / (range === '7' ? 7 : 30))}/day`} 
           positive={true} 
           icon={Users} 
+          delay={0.12}
         />
         <StatCard 
           label="Ticket Average" 
@@ -346,12 +350,18 @@ export default function Dashboard() {
           change="Completed Sales" 
           positive={true} 
           icon={Clock} 
+          delay={0.18}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Sales Chart Section */}
-        <div className="lg:col-span-2 card p-6 flex flex-col justify-between">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className="lg:col-span-2 card p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+        >
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
@@ -366,10 +376,12 @@ export default function Dashboard() {
               
               <div className="flex items-center gap-2.5">
                 {/* Dataset selection control */}
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setShowDemoBaseline(!showDemoBaseline)}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5",
+                    "px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer",
                     showDemoBaseline 
                       ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" 
                       : "bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200"
@@ -378,7 +390,7 @@ export default function Dashboard() {
                 >
                   <Activity size={12} className={cn(showDemoBaseline && "animate-pulse")} />
                   <span>{showDemoBaseline ? "With Baselines" : "Strict DB"}</span>
-                </button>
+                </motion.button>
 
                 {/* Range controller dropdown */}
                 <select 
@@ -499,10 +511,15 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* AI Insight Section */}
-        <div className="card bg-zinc-900 border-zinc-800 p-6 flex flex-col justify-between">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="card bg-zinc-900 border-zinc-800 p-6 flex flex-col justify-between shadow-lg"
+        >
           <div>
             <div className="flex items-center gap-2 mb-6">
               <div className="p-2 bg-brand/20 rounded-lg text-brand">
@@ -541,11 +558,16 @@ export default function Dashboard() {
                Confidence Score: 94.2% • Based on {range}d context
              </p>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Customer Sentiment Hub */}
-      <div className="card p-6 space-y-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="card p-6 space-y-6 shadow-sm hover:shadow-md transition-shadow"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-100">
           <div>
             <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
@@ -582,9 +604,11 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'positive').length / reviews.length) * 100 : 0}%` }}
+                    <motion.div 
+                      className="h-full bg-emerald-500 rounded-full" 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'positive').length / reviews.length) * 100 : 0}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
                     />
                   </div>
                 </div>
@@ -598,9 +622,11 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-zinc-400 rounded-full transition-all duration-500" 
-                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'neutral').length / reviews.length) * 100 : 0}%` }}
+                    <motion.div 
+                      className="h-full bg-zinc-400 rounded-full" 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'neutral').length / reviews.length) * 100 : 0}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
                     />
                   </div>
                 </div>
@@ -614,16 +640,21 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="w-full h-2 bg-zinc-200/60 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-rose-500 rounded-full transition-all duration-500" 
-                      style={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'negative').length / reviews.length) * 100 : 0}%` }}
+                    <motion.div 
+                      className="h-full bg-rose-500 rounded-full" 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${reviews.length > 0 ? (reviews.filter(r => r.sentiment === 'negative').length / reviews.length) * 100 : 0}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Summary Sentiment Rating Card */}
-              <div className="p-4 bg-brand/5 border border-brand/10 rounded-2xl flex items-center justify-between">
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="p-4 bg-brand/5 border border-brand/10 rounded-2xl flex items-center justify-between"
+              >
                 <div>
                   <p className="text-xs font-bold text-zinc-500 tracking-wide uppercase">Average Rating</p>
                   <p className="text-3xl font-black text-zinc-900 mt-1">
@@ -633,7 +664,7 @@ export default function Dashboard() {
                 <div className="flex items-center text-amber-500">
                   <Star size={32} className="fill-amber-500 text-amber-500" />
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Column 2: AI Multi-Aspect Sentiment Report */}
@@ -682,12 +713,19 @@ export default function Dashboard() {
                     progressColor: 'bg-amber-500',
                     data: (feedbackSummary || fallbackAspects)?.value
                   }
-                ].map((cat) => {
+                ].map((cat, idx) => {
                   const IconComponent = cat.icon;
                   const aspectData = cat.data || { sentiment: 'neutral', score: 50, summary: '' };
                   
                   return (
-                    <div key={cat.key} className="bg-zinc-50/70 border border-zinc-200/40 rounded-xl p-3 space-y-2 transition-all hover:bg-zinc-50">
+                    <motion.div 
+                      key={cat.key}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
+                      whileHover={{ x: 2 }}
+                      className="bg-zinc-50/70 border border-zinc-200/40 rounded-xl p-3 space-y-2 transition-all hover:bg-zinc-50"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className={cn("p-1.5 rounded-lg border", cat.colorClass)}>
@@ -717,19 +755,26 @@ export default function Dashboard() {
                       </div>
                       
                       <div className="w-full h-1 bg-zinc-200/50 rounded-full overflow-hidden">
-                        <div 
-                          className={cn("h-full rounded-full transition-all duration-500", cat.progressColor)}
-                          style={{ width: `${aspectData.score}%` }}
+                        <motion.div 
+                          className={cn("h-full rounded-full", cat.progressColor)}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${aspectData.score}%` }}
+                          transition={{ duration: 0.8, delay: 0.2 + idx * 0.05 }}
                         />
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-500 italic">"{aspectData.summary}"</p>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
 
               {(feedbackSummary || fallbackAspects)?.overallSummary && (
-                <div className="bg-amber-50/30 border border-amber-100/70 rounded-2xl p-4 flex gap-3 mt-4">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: 0.35 }}
+                  className="bg-amber-50/30 border border-amber-100/70 rounded-2xl p-4 flex gap-3 mt-4"
+                >
                   <div className="p-2 bg-amber-50 rounded-xl text-amber-600 h-fit border border-amber-100/50">
                     <Brain size={16} className="animate-pulse" />
                   </div>
@@ -739,7 +784,7 @@ export default function Dashboard() {
                       {(feedbackSummary || fallbackAspects).overallSummary}
                     </p>
                   </div>
-                </div>
+                </motion.div>
               )}
             </div>
 
@@ -748,7 +793,13 @@ export default function Dashboard() {
               <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 font-bold">Latest Customer Reviews</h3>
               <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 divide-y divide-zinc-100">
                 {reviews.slice(0, 10).map((review, idx) => (
-                  <div key={review.id || idx} className="pt-4 first:pt-0 animate-in fade-in">
+                  <motion.div 
+                    key={review.id || idx} 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: idx * 0.04 }}
+                    className="pt-4 first:pt-0"
+                  >
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-zinc-800 truncate max-w-[120px]">{review.customerEmail}</span>
@@ -780,26 +831,35 @@ export default function Dashboard() {
                         {review.sentiment === 'negative' && "😞 Negative"}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
 
-function StatCard({ label, value, change, positive, icon: Icon }: any) {
+function StatCard({ label, value, change, positive, icon: Icon, delay = 0 }: any) {
   return (
-    <div className="card p-6 flex flex-col gap-4">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      className="card p-6 flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default"
+    >
       <div className="flex items-center justify-between">
-        <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100 text-zinc-600">
+        <motion.div 
+          whileHover={{ scale: 1.1, rotate: 6 }}
+          className="p-2.5 bg-zinc-50 rounded-xl border border-zinc-100 text-zinc-600"
+        >
           <Icon size={20} />
-        </div>
+        </motion.div>
         <div className={cn(
-          "flex items-center text-xs font-bold px-2 py-1 rounded-full",
+          "flex items-center text-xs font-bold px-2.5 py-1 rounded-full",
           positive ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
         )}>
           {positive ? <ArrowUpRight size={14} className="mr-0.5" /> : <ArrowDownRight size={14} className="mr-0.5" />}
@@ -808,8 +868,8 @@ function StatCard({ label, value, change, positive, icon: Icon }: any) {
       </div>
       <div>
         <h3 className="text-zinc-500 text-sm font-medium">{label}</h3>
-        <p className="text-2xl font-bold text-zinc-900">{value}</p>
+        <p className="text-2xl font-bold text-zinc-900 mt-0.5">{value}</p>
       </div>
-    </div>
+    </motion.div>
   );
 }
