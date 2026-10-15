@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
 import { generateInvoicePDF } from '../lib/invoiceGenerator';
 import OrderProgressTracker from '../components/orders/OrderProgressTracker';
+import { toast } from 'sonner';
 
 const getDishImage = (item: any) => {
   if (item.image && item.image.trim() !== '') return item.image;
@@ -263,6 +264,7 @@ export default function CustomerView() {
     } else {
       setCart([...cart, { ...item, qty: 1 }]);
     }
+    toast.success(`Added ${item.name} to cart`, { duration: 2500 });
   };
 
   const removeFromCart = (id: string) => {
@@ -292,6 +294,10 @@ export default function CustomerView() {
       });
       setCart([]);
       setOrdered(true);
+      toast.success("Order Placed Successfully!", {
+        description: "Your order has been sent directly to the kitchen chefs.",
+        duration: 5000,
+      });
       setTimeout(() => setOrdered(false), 5000);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, path);

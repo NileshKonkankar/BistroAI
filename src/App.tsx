@@ -6,6 +6,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useAppStore } from './store/useAppStore';
 import { handleFirestoreError, OperationType } from './lib/firestoreErrorHandler';
 import RoleGuard from './components/auth/RoleGuard';
+import { Toaster } from 'sonner';
+import 'sonner/dist/styles.css';
+import OrderNotificationListener from './components/notifications/OrderNotificationListener';
 
 // Layout & Components
 import Layout from './components/layout/Layout';
@@ -68,6 +71,14 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <Toaster 
+        position="top-right" 
+        richColors 
+        closeButton 
+        expand 
+        theme="light"
+      />
+      <OrderNotificationListener />
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
         

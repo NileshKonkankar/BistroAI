@@ -23,8 +23,10 @@ import {
   Timer,
   Check,
   AlertTriangle,
-  Download
+  Download,
+  Plus
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { 
   collection, 
   query, 
@@ -237,8 +239,45 @@ export default function Orders() {
       }
       
       await batch.commit();
+      toast.success(`Order #${id.slice(-4).toUpperCase()} marked as ${newStatus}`);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `orders/${id}`);
+    }
+  };
+
+  const simulateCustomerOrder = async () => {
+    const sampleDishes = [
+      { name: 'Truffle Wagyu Burger', price: 26 },
+      { name: 'Pan-Seared Chilean Sea Bass', price: 34 },
+      { name: 'Porcini Wild Mushroom Risotto', price: 22 },
+      { name: 'Burrata & Heirloom Tomato Salad', price: 16 },
+      { name: 'Molten Belgian Chocolate Cake', price: 14 },
+      { name: 'Artisanal Cold Brew Martini', price: 15 },
+    ];
+    // Select 2-3 randomized dishes
+    const shuffled = [...sampleDishes].sort(() => 0.5 - Math.random());
+    const items = shuffled.slice(0, Math.floor(Math.random() * 2) + 2).map(d => ({
+      name: d.name,
+      qty: Math.floor(Math.random() * 2) + 1,
+      price: d.price
+    }));
+    const totalAmount = items.reduce((acc, curr) => acc + (curr.price * curr.qty), 0);
+    const tableNumber = `T${Math.floor(Math.random() * 6) + 1}`;
+    
+    try {
+      await addDoc(collection(db, 'orders'), {
+        customerId: user?.uid || 'guest-simulated',
+        customerEmail: `customer${Math.floor(Math.random() * 900) + 100}@bistro.com`,
+        items,
+        totalAmount,
+        status: 'pending',
+        type: 'dine-in',
+        tableNumber,
+        createdAt: serverTimestamp(),
+      });
+      toast.info(`Simulated order submitted to Firestore! Toast alert arriving...`);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'orders');
     }
   };
 
@@ -351,16 +390,26 @@ export default function Orders() {
             </div>
 
             {activeTab === 'orders' && (
-              <button
-                onClick={() => {
-                  setIsKitchenMode(true);
-                  setNow(Date.now());
-                }}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-zinc-900 text-white hover:bg-zinc-800 rounded-xl transition-all shadow-md active:scale-95"
-              >
-                <ChefHat size={16} className="text-amber-400 animate-pulse" />
-                <span>Kitchen Display</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={simulateCustomerOrder}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Simulate customer placing order to test real-time Toast notification & chime"
+                >
+                  <Plus size={16} className="stroke-[3]" />
+                  <span>Simulate Order</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setIsKitchenMode(true);
+                    setNow(Date.now());
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-zinc-900 text-white hover:bg-zinc-800 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  <ChefHat size={16} className="text-amber-400 animate-pulse" />
+                  <span>Kitchen Display</span>
+                </button>
+              </div>
             )}
           </div>
         )}
